@@ -4,13 +4,24 @@ Compile-time generated codecs for JSON-shaped Elixir structs.
 
 `JSONCodec` is **not** another JSON parser. It uses [`Jason`](https://hex.pm/packages/jason) for parsing and focuses on the annoying part that tends to be rewritten in every Elixir project: converting decoded string-keyed JSON maps into nested structs with aliases, defaults, computed fields, explicit atom policy, and schema export.
 
+JSONCodec uses normal Elixir declarations as the source of truth:
+
+- `defstruct` for fields and defaults
+- `@type t` for field types
+- `codec/2` only for JSON-specific field metadata
+
 ```elixir
 defmodule FunctionID do
   use JSONCodec
 
-  field :module, :string
-  field :function, :string
-  field :arity, :non_neg_integer
+  defstruct [:module, :function, :arity, :id]
+
+  @type t :: %__MODULE__{
+          module: String.t(),
+          function: String.t(),
+          arity: non_neg_integer(),
+          id: String.t() | nil
+        }
 
   computed :id, fn function ->
     "#{function.module}.#{function.function}/#{function.arity}"
@@ -20,10 +31,16 @@ end
 defmodule DataRef do
   use JSONCodec
 
-  field :type, {:enum, [:argument, :return, :variable]}
-  field :function, FunctionID
-  field :name, :atom, optional: true, atom: :unsafe
-  field :index, :non_neg_integer, optional: true
+  defstruct [:type, :function, :name, :index]
+
+  @type t :: %__MODULE__{
+          type: :argument | :return | :variable,
+          function: FunctionID.t(),
+          name: atom() | nil,
+          index: non_neg_integer() | nil
+        }
+
+  codec :name, atom: :unsafe
 end
 ```
 
@@ -63,7 +80,7 @@ def from_map!(%{"from" => from, "to" => to} = map) do
 end
 ```
 
-`JSONCodec` generates that boring code from a small DSL.
+`JSONCodec` generates that boring code from normal struct/typespec declarations.
 
 | Library | Main job | Struct decode | Nested structs | Field aliases | Computed fields | Atom policy | Hot-path goal |
 |---|---|---:|---:|---:|---:|---:|---:|
@@ -77,43 +94,79 @@ end
 
 Use Jason for parsing. Use Tarams/Ecto for Phoenix params. Use a validation framework when rich validation is the main goal. Use `JSONCodec` when you own the struct shape and want fast, boring, explicit map-to-struct codecs.
 
-## Field options
+## Codec metadata
+
+Most fields need no JSONCodec-specific declaration. Defaults come from `defstruct`; types come from `@type t`.
 
 ```elixir
-field :name, :string
-field :version, :string, optional: true
-field :dev_dependencies, {:map, :string, :string}, json: "devDependencies", default: %{}
-field :branch, {:nullable, {:enum, [:then, :else, :case]}}, default: nil
-field :variable_names, {:list, :atom}, default: [], atom: :unsafe
+defmodule PackageManifest do
+  use JSONCodec, case: :camel
+
+  defstruct [:name, :version, dev_dependencies: %{}]
+
+  @type t :: %__MODULE__{
+          name: String.t(),
+          version: String.t() | nil,
+          dev_dependencies: %{String.t() => String.t()}
+        }
+end
 ```
 
-Supported MVP types:
+`:camel` maps `:dev_dependencies` to `"devDependencies"` automatically.
 
-- `:string`
-- `:integer`
-- `:non_neg_integer`
-- `:pos_integer`
-- `:float`
-- `:number`
-- `:boolean`
-- `:atom`
-- `:any` / `:term`
-- `{:nullable, type}`
-- `{:literal, value}`
-- `{:enum, atoms}`
-- `{:list, type}`
-- `{:map, key_type, value_type}`
-- another `JSONCodec` module
+Use `codec/2` for exceptions and special behavior:
+
+```elixir
+codec :not_found, as: "not_found"
+codec :variable_names, atom: :unsafe
+codec :rotate, transform: :normalize_rotate
+codec :icons, values: :icon_value
+```
+
+Local callback atoms are expanded to functions in the same module:
+
+```elixir
+codec :rotate, transform: :normalize_rotate
+# calls normalize_rotate(value)
+
+codec :icons, values: :icon_value
+# calls icon_value(key, value, source_map)
+```
+
+Remote captures are also supported:
+
+```elixir
+codec :rotate, transform: &MyTransforms.normalize_rotate/1
+codec :icons, values: &MyTransforms.icon_value/3
+```
 
 Atom policy is explicit:
 
 ```elixir
-field :status, {:enum, [:active, :inactive]}
-field :name, :atom, atom: :existing
-field :variable_name, :atom, atom: :unsafe
+codec :status, atom: :existing
+codec :variable_name, atom: :unsafe
 ```
 
 `:unsafe` uses `String.to_atom/1`; only use it for bounded/trusted internal data.
+
+## Supported MVP type shapes
+
+Read from `@type t`:
+
+- `String.t()`
+- `integer()`
+- `non_neg_integer()`
+- `pos_integer()`
+- `float()`
+- `number()`
+- `boolean()`
+- `atom()`
+- `any()` / `term()`
+- `type | nil`
+- atom unions like `:active | :inactive`
+- `[type]`
+- `%{String.t() => value_type}`
+- another `JSONCodec` module via `Other.t()`
 
 ## Schema export
 

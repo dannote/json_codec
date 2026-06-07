@@ -4,37 +4,59 @@ defmodule JSONCodecTest do
   defmodule FunctionID do
     use JSONCodec
 
-    field(:module, :string)
-    field(:function, :string)
-    field(:arity, :non_neg_integer)
+    defstruct [:module, :function, :arity, :id]
+
+    @type t :: %__MODULE__{
+            module: String.t(),
+            function: String.t(),
+            arity: non_neg_integer(),
+            id: String.t() | nil
+          }
+
     computed(:id, fn function -> "#{function.module}.#{function.function}/#{function.arity}" end)
   end
 
   defmodule DataRef do
     use JSONCodec
 
-    field(:type, {:enum, [:argument, :return, :variable]})
-    field(:function, FunctionID)
-    field(:name, :atom, optional: true, atom: :unsafe)
-    field(:index, :non_neg_integer, optional: true)
+    defstruct [:type, :function, :name, :index]
+
+    @type t :: %__MODULE__{
+            type: :argument | :return | :variable,
+            function: FunctionID.t(),
+            name: atom() | nil,
+            index: non_neg_integer() | nil
+          }
+
+    codec(:name, atom: :unsafe)
   end
 
   defmodule DataFlow do
     use JSONCodec
 
-    field(:from, DataRef)
-    field(:to, DataRef)
-    field(:through, {:list, DataRef}, default: [])
-    field(:variable_names, {:list, :atom}, default: [], atom: :unsafe)
-    field(:branch, {:nullable, {:enum, [:then, :else, :case]}}, default: nil)
+    defstruct [:from, :to, through: [], variable_names: [], branch: nil]
+
+    @type t :: %__MODULE__{
+            from: DataRef.t(),
+            to: DataRef.t(),
+            through: [DataRef.t()],
+            variable_names: [atom()],
+            branch: :then | :else | :case | nil
+          }
+
+    codec(:variable_names, atom: :unsafe)
   end
 
   defmodule PackageManifest do
-    use JSONCodec
+    use JSONCodec, case: :camel
 
-    field(:name, :string)
-    field(:version, :string, optional: true)
-    field(:dev_dependencies, {:map, :string, :string}, json: "devDependencies", default: %{})
+    defstruct [:name, :version, dev_dependencies: %{}]
+
+    @type t :: %__MODULE__{
+            name: String.t(),
+            version: String.t() | nil,
+            dev_dependencies: %{String.t() => String.t()}
+          }
   end
 
   test "decodes nested structs with computed fields" do
@@ -62,7 +84,7 @@ defmodule JSONCodecTest do
     assert flow.branch == :then
   end
 
-  test "decodes JSON and aliases fields" do
+  test "decodes JSON and aliases fields with camel case" do
     json = ~s({"name":"demo","devDependencies":{"jason":"~> 1.4"}})
 
     assert {:ok, manifest} = PackageManifest.decode(json)
