@@ -376,65 +376,65 @@ defmodule JSONCodec do
 
   defp field_value_ast(field, raw_strategy) do
     decoder = quote(do: JSONCodec.Decoder)
-    atom = field.name
-    json = field.json
     type = Macro.escape(field.type)
     path = [field.name]
 
-    raw = raw_value_ast(raw_strategy, decoder, atom, json)
-
-    present =
-      cond do
-        match?({:raw, _}, raw_strategy) ->
-          raw
-
-        field.required ->
-          quote do
-            unquote(decoder).required!(unquote(raw), unquote(path), unquote(type))
-          end
-
-        true ->
-          raw
-      end
-
-    defaulted =
-      if field.default? do
-        quote do
-          unquote(decoder).default(unquote(present), unquote(Macro.escape(field.default)))
-        end
-      else
-        present
-      end
-
-    decoded =
-      if field.required do
-        quote do
-          value = unquote(defaulted)
-
-          unquote(
-            decode_value_ast(quote(do: value), field.type, path, field.opts, quote(do: map))
-          )
-        end
-      else
-        decode_type = non_nil_type(field.type)
-
-        quote do
-          case unquote(defaulted) do
-            :__json_codec_missing__ ->
-              nil
-
-            nil ->
-              nil
-
-            value ->
-              unquote(
-                decode_value_ast(quote(do: value), decode_type, path, field.opts, quote(do: map))
-              )
-          end
-        end
-      end
+    raw = raw_value_ast(raw_strategy, decoder, field.name, field.json)
+    present = present_field_ast(raw, raw_strategy, field, decoder, path, type)
+    defaulted = defaulted_field_ast(present, field, decoder)
+    decoded = decoded_field_ast(defaulted, field, path)
 
     transform_ast(decoded, Keyword.get(field.opts, :transform))
+  end
+
+  defp present_field_ast(raw, raw_strategy, field, decoder, path, type) do
+    cond do
+      match?({:raw, _}, raw_strategy) ->
+        raw
+
+      field.required ->
+        quote do
+          unquote(decoder).required!(unquote(raw), unquote(path), unquote(type))
+        end
+
+      true ->
+        raw
+    end
+  end
+
+  defp defaulted_field_ast(present, %{default?: true, default: default}, decoder) do
+    quote do
+      unquote(decoder).default(unquote(present), unquote(Macro.escape(default)))
+    end
+  end
+
+  defp defaulted_field_ast(present, _field, _decoder), do: present
+
+  defp decoded_field_ast(defaulted, %{required: true} = field, path) do
+    quote do
+      value = unquote(defaulted)
+
+      unquote(decode_value_ast(quote(do: value), field.type, path, field.opts, quote(do: map)))
+    end
+  end
+
+  defp decoded_field_ast(defaulted, field, path) do
+    decode_type = non_nil_type(field.type)
+
+    quote do
+      case unquote(defaulted) do
+        :__json_codec_missing__ ->
+          nil
+
+        nil ->
+          nil
+
+        value ->
+          unquote(
+            decode_value_ast(quote(do: value), decode_type, path, field.opts, quote(do: map))
+          )
+      end
+    end
   end
 
   defp raw_value_ast({:raw, value}, _decoder, _atom, _json), do: value
