@@ -44,7 +44,7 @@ defmodule JSONCodec.MixProject do
   defp package do
     [
       licenses: ["MIT"],
-      links: %{"GitHub" => "https://github.com/elixir-vibe/json_codec"}
+      links: %{"GitHub" => "https://github.com/dannote/json_codec"}
     ]
   end
 

@@ -13,7 +13,7 @@ defmodule JSONCodec.Error do
     location =
       case path do
         [] -> "$"
-        parts -> Enum.map_join(parts, "", &format_path_part/1)
+        parts -> Enum.map_join(parts, &format_path_part/1)
       end
 
     "#{location}: #{reason}, expected #{inspect(expected)}, got #{inspect(got)}"

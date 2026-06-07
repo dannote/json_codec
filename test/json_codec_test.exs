@@ -192,6 +192,29 @@ defmodule JSONCodecTest do
     assert %JSONCodec.Error{path: [:name], reason: :missing_required_field} = error
   end
 
+  test "fast JSON path preserves missing required field errors" do
+    assert {:error, error} = FastPackageManifest.from_map(%{"version" => "1.0.0"})
+    assert %JSONCodec.Error{path: [:name], reason: :missing_required_field} = error
+  end
+
+  test "fast JSON path preserves type errors" do
+    assert_raise JSONCodec.Error, ~r/\.name: invalid_type/, fn ->
+      FastPackageManifest.from_map!(%{"name" => 123})
+    end
+  end
+
+  test "map value decoding rejects invalid key types" do
+    assert_raise JSONCodec.Error, ~r/\.icons: invalid_type/, fn ->
+      IconSet.from_map!(%{"prefix" => "demo", "icons" => %{home: %{"body" => "<path/>"}}})
+    end
+  end
+
+  test "decode_values callback errors pass through" do
+    assert_raise KeyError, fn ->
+      DirectIconSet.from_map!(%{"prefix" => "demo", "icons" => %{"home" => %{}}})
+    end
+  end
+
   test "exports JSON Schema-compatible maps" do
     assert %{
              "type" => "object",

@@ -95,7 +95,9 @@ defmodule JSONCodec.Decoder do
   def decode(values, {:list, type}, path, opts, source) when is_list(values) do
     values
     |> Enum.with_index()
-    |> Enum.map(fn {value, index} -> decode(value, type, path ++ [index], opts, source) end)
+    |> Enum.map(fn {value, index} ->
+      decode(value, type, append_path(path, index), opts, source)
+    end)
   end
 
   def decode(value, {:list, type}, path, _opts, _source),
@@ -105,7 +107,7 @@ defmodule JSONCodec.Decoder do
     Map.new(value, fn {key, item} ->
       decoded_key = decode_key(key, key_type, path, opts, source)
       item = map_value(item, decoded_key, source, opts)
-      {decoded_key, decode(item, value_type, path ++ [decoded_key], opts, source)}
+      {decoded_key, decode(item, value_type, append_path(path, decoded_key), opts, source)}
     end)
   end
 
@@ -122,6 +124,9 @@ defmodule JSONCodec.Decoder do
   def type_error!(path, expected, value) do
     raise Error, path: path, expected: expected, got: value, reason: :invalid_type
   end
+
+  defp append_path([], item), do: [item]
+  defp append_path([head | tail], item), do: [head | append_path(tail, item)]
 
   defp decode_key(key, :string, _path, _opts, _source) when is_binary(key), do: key
   defp decode_key(key, :atom, path, opts, source), do: decode(key, :atom, path, opts, source)

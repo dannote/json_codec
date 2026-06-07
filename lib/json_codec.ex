@@ -301,8 +301,13 @@ defmodule JSONCodec do
   defp normalize_type(atom, _env) when is_atom(atom), do: atom
   defp normalize_type(_other, _env), do: :any
 
-  defp collect_union({:|, _, [left, right]}), do: collect_union(left) ++ collect_union(right)
-  defp collect_union(other), do: [other]
+  defp collect_union(union), do: union |> collect_union([]) |> Enum.reverse()
+
+  defp collect_union({:|, _, [left, right]}, acc) do
+    collect_union(right, collect_union(left, acc))
+  end
+
+  defp collect_union(other, acc), do: [other | acc]
 
   defp enum_values?(values), do: Enum.all?(values, &is_atom/1) and nil not in values
 
@@ -548,6 +553,8 @@ defmodule JSONCodec do
   end
 
   defp decode_value_ast(value, {:list, :atom} = type, path, [atom: :unsafe], _source) do
+    escaped_type = Macro.escape(type)
+
     quote do
       case unquote(value) do
         values when is_list(values) ->
@@ -559,11 +566,11 @@ defmodule JSONCodec do
               String.to_atom(string)
 
             other ->
-              JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), other)
+              JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), other)
           end)
 
         other ->
-          JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), other)
+          JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), other)
       end
     end
   end
@@ -602,6 +609,8 @@ defmodule JSONCodec do
   end
 
   defp list_module_decode_ast(value, module, type, path) do
+    escaped_type = Macro.escape(type)
+
     quote do
       case unquote(value) do
         values when is_list(values) ->
@@ -610,16 +619,18 @@ defmodule JSONCodec do
               unquote(module).from_map!(map)
 
             other ->
-              JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), other)
+              JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), other)
           end)
 
         other ->
-          JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), other)
+          JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), other)
       end
     end
   end
 
   defp map_module_decode_ast(value, module, type, path, opts, source) do
+    escaped_type = Macro.escape(type)
+
     quote do
       case unquote(value) do
         entries when is_map(entries) ->
@@ -639,11 +650,11 @@ defmodule JSONCodec do
                )}
 
             {key, _item} ->
-              JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), key)
+              JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), key)
           end)
 
         other ->
-          JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), other)
+          JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), other)
       end
     end
   end

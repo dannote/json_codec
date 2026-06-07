@@ -122,9 +122,6 @@ Use `codec/2` for exceptions and special behavior:
 codec :not_found, as: "not_found"
 codec :variable_names, atom: :unsafe
 codec :rotate, transform: :normalize_rotate
-codec :icons, values: :icon_value
-codec :icons, values: :icon_value, values_source: :icon_defaults
-codec :icons, decode_values: :decode_icon, values_source: :icon_defaults
 ```
 
 Local callback atoms are expanded to functions in the same module:
@@ -135,14 +132,6 @@ codec :rotate, transform: :normalize_rotate
 
 codec :icons, values: :icon_value
 # calls icon_value(key, value, source_map)
-
-codec :icons, values: :icon_value, values_source: :icon_defaults
-# calls icon_defaults(source_map) once, then icon_value(key, value, defaults) for each entry
-# the returned value is still decoded as the map value type
-
-codec :icons, decode_values: :decode_icon, values_source: :icon_defaults
-# calls icon_defaults(source_map) once, then decode_icon(key, value, defaults) for each entry
-# the returned value is the final decoded map value
 ```
 
 Remote captures are also supported:
@@ -150,8 +139,41 @@ Remote captures are also supported:
 ```elixir
 codec :rotate, transform: &MyTransforms.normalize_rotate/1
 codec :icons, values: &MyTransforms.icon_value/3
-codec :icons, values: &MyTransforms.icon_value/3, values_source: &MyTransforms.icon_defaults/1
-codec :icons, decode_values: &MyTransforms.decode_icon/3, values_source: &MyTransforms.icon_defaults/1
+```
+
+### Advanced map value callbacks
+
+For map fields, `values:` transforms each raw map value before JSONCodec decodes it as the declared value type:
+
+```elixir
+codec :icons, values: :icon_value
+# icon_value(key, raw_value, source_map) -> raw_value_for_normal_decode
+```
+
+If that callback needs shared context, use `values_source:` to compute the third argument once per map field:
+
+```elixir
+codec :icons, values: :icon_value, values_source: :icon_defaults
+# icon_defaults(source_map) -> defaults
+# icon_value(key, raw_value, defaults) -> raw_value_for_normal_decode
+```
+
+For map-heavy data where a custom decoder is clearer or faster, `decode_values:` returns the final decoded map value directly:
+
+```elixir
+codec :icons, decode_values: :decode_icon, values_source: :icon_defaults
+# icon_defaults(source_map) -> defaults
+# decode_icon(key, raw_value, defaults) -> final decoded value
+```
+
+Remote captures work for these callbacks too:
+
+```elixir
+codec :icons, values: &MyTransforms.icon_value/3,
+              values_source: &MyTransforms.icon_defaults/1
+
+codec :icons, decode_values: &MyTransforms.decode_icon/3,
+              values_source: &MyTransforms.icon_defaults/1
 ```
 
 Atom policy is explicit:
