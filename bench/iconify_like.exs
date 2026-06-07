@@ -70,14 +70,22 @@ defmodule Bench.IconifyLike.Codec.Set do
           top: integer()
         }
 
-  codec :icons, values: :icon_value, values_source: :icon_defaults
+  codec :icons, decode_values: :icon_value, values_source: :icon_defaults
 
   def icon_defaults(source), do: Map.take(source, ["left", "top", "width", "height", "rotate", "hFlip", "vFlip"])
 
   def icon_value(name, data, defaults) do
-    defaults
-    |> Map.merge(data)
-    |> Map.put("name", name)
+    %Bench.IconifyLike.Codec.Icon{
+      name: name,
+      body: Map.fetch!(data, "body"),
+      width: Map.get(data, "width", Map.get(defaults, "width", 16)),
+      height: Map.get(data, "height", Map.get(defaults, "height", 16)),
+      left: Map.get(data, "left", Map.get(defaults, "left", 0)),
+      top: Map.get(data, "top", Map.get(defaults, "top", 0)),
+      rotate: Bench.IconifyLike.Codec.Icon.normalize_rotate(Map.get(data, "rotate", Map.get(defaults, "rotate", 0))),
+      h_flip: Map.get(data, "hFlip", Map.get(defaults, "hFlip", false)),
+      v_flip: Map.get(data, "vFlip", Map.get(defaults, "vFlip", false))
+    }
   end
 end
 

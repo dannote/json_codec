@@ -211,6 +211,7 @@ defmodule JSONCodec do
     opts
     |> normalize_callback(:transform, 1, module, field, env)
     |> normalize_callback(:values, 3, module, field, env)
+    |> normalize_callback(:decode_values, 3, module, field, env)
     |> normalize_callback(:values_source, 1, module, field, env)
   end
 
@@ -626,12 +627,16 @@ defmodule JSONCodec do
 
           Map.new(entries, fn
             {key, item} when is_binary(key) ->
-              item =
-                unquote(
-                  map_value_ast(quote(do: item), quote(do: key), quote(do: values_source), opts)
-                )
-
-              {key, unquote(module).from_map!(item)}
+              {key,
+               unquote(
+                 map_decoded_value_ast(
+                   quote(do: item),
+                   quote(do: key),
+                   quote(do: values_source),
+                   module,
+                   opts
+                 )
+               )}
 
             {key, _item} ->
               JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), key)
@@ -656,6 +661,27 @@ defmodule JSONCodec do
       transform ->
         quote do
           unquote(Macro.escape(transform)).(unquote(source))
+        end
+    end
+  end
+
+  defp map_decoded_value_ast(item, key, source, module, opts) do
+    case Keyword.get(opts, :decode_values) do
+      nil ->
+        item = map_value_ast(item, key, source, opts)
+
+        quote do
+          unquote(module).from_map!(unquote(item))
+        end
+
+      {:local, callback_module, fun, 3} ->
+        quote do
+          unquote(callback_module).unquote(fun)(unquote(key), unquote(item), unquote(source))
+        end
+
+      decoder ->
+        quote do
+          unquote(Macro.escape(decoder)).(unquote(key), unquote(item), unquote(source))
         end
     end
   end

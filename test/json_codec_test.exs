@@ -92,6 +92,26 @@ defmodule JSONCodecTest do
     def icon_value(name, data, defaults), do: defaults |> Map.merge(data) |> Map.put("name", name)
   end
 
+  defmodule DirectIconSet do
+    use JSONCodec, fast_path: :json
+
+    defstruct [:prefix, icons: %{}]
+
+    @type t :: %__MODULE__{prefix: String.t(), icons: %{String.t() => IconValue.t()}}
+
+    codec(:icons, decode_values: :icon_value, values_source: :icon_defaults)
+
+    def icon_defaults(source), do: Map.take(source, ["width"])
+
+    def icon_value(name, data, defaults) do
+      %IconValue{
+        name: name,
+        body: Map.fetch!(data, "body"),
+        width: Map.get(data, "width", Map.get(defaults, "width", 16))
+      }
+    end
+  end
+
   test "decodes nested structs with computed fields" do
     map = %{
       "from" => %{
@@ -150,6 +170,17 @@ defmodule JSONCodecTest do
 
     assert %IconSet{icons: %{"home" => %IconValue{name: "home", body: "<path/>", width: 16}}} =
              IconSet.from_map!(%{
+               "prefix" => "demo",
+               "width" => 16,
+               "icons" => %{"home" => %{"body" => "<path/>"}}
+             })
+  end
+
+  test "fast JSON path supports directly decoded map values" do
+    assert %DirectIconSet{
+             icons: %{"home" => %IconValue{name: "home", body: "<path/>", width: 16}}
+           } =
+             DirectIconSet.from_map!(%{
                "prefix" => "demo",
                "width" => 16,
                "icons" => %{"home" => %{"body" => "<path/>"}}
