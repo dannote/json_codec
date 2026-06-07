@@ -3,15 +3,22 @@ defmodule JSONCodec.Decoder do
 
   alias JSONCodec.Error
 
+  @compile {:inline, default: 2, fetch_field: 3, required!: 3}
+
   @missing :__json_codec_missing__
 
   def missing, do: @missing
 
   def fetch_field(map, atom_key, json_key) when is_map(map) do
-    cond do
-      Map.has_key?(map, json_key) -> Map.fetch!(map, json_key)
-      Map.has_key?(map, atom_key) -> Map.fetch!(map, atom_key)
-      true -> @missing
+    case Map.fetch(map, json_key) do
+      {:ok, value} ->
+        value
+
+      :error ->
+        case Map.fetch(map, atom_key) do
+          {:ok, value} -> value
+          :error -> @missing
+        end
     end
   end
 
@@ -113,11 +120,7 @@ defmodule JSONCodec.Decoder do
   end
 
   def decode(value, module, _path, _opts, _source) when is_map(value) and is_atom(module) do
-    if function_exported?(module, :from_map!, 1) do
-      module.from_map!(value)
-    else
-      value
-    end
+    module.from_map!(value)
   end
 
   def decode(value, expected, path, _opts, _source), do: type_error!(path, expected, value)

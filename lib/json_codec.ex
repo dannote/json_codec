@@ -330,7 +330,6 @@ defmodule JSONCodec do
     atom = field.name
     json = field.json
     type = Macro.escape(field.type)
-    opts = Macro.escape(field.opts)
     path = [field.name]
 
     raw =
@@ -359,15 +358,15 @@ defmodule JSONCodec do
     decoded =
       if field.required do
         quote do
-          case unquote(defaulted) do
-            nil ->
-              nil
+          value = unquote(defaulted)
 
-            value ->
-              unquote(decoder).decode(value, unquote(type), unquote(path), unquote(opts), map)
-          end
+          unquote(
+            decode_value_ast(quote(do: value), field.type, path, field.opts, quote(do: map))
+          )
         end
       else
+        decode_type = non_nil_type(field.type)
+
         quote do
           case unquote(defaulted) do
             :__json_codec_missing__ ->
@@ -377,12 +376,200 @@ defmodule JSONCodec do
               nil
 
             value ->
-              unquote(decoder).decode(value, unquote(type), unquote(path), unquote(opts), map)
+              unquote(
+                decode_value_ast(quote(do: value), decode_type, path, field.opts, quote(do: map))
+              )
           end
         end
       end
 
     transform_ast(decoded, Keyword.get(field.opts, :transform))
+  end
+
+  defp non_nil_type({:nullable, type}), do: type
+  defp non_nil_type(type), do: type
+
+  defp decode_value_ast(value, :string, path, _opts, _source) do
+    quote do
+      case unquote(value) do
+        string when is_binary(string) -> string
+        other -> JSONCodec.Decoder.type_error!(unquote(path), :string, other)
+      end
+    end
+  end
+
+  defp decode_value_ast(value, :integer, path, _opts, _source) do
+    quote do
+      case unquote(value) do
+        integer when is_integer(integer) -> integer
+        other -> JSONCodec.Decoder.type_error!(unquote(path), :integer, other)
+      end
+    end
+  end
+
+  defp decode_value_ast(value, :non_neg_integer, path, _opts, _source) do
+    quote do
+      case unquote(value) do
+        integer when is_integer(integer) and integer >= 0 -> integer
+        other -> JSONCodec.Decoder.type_error!(unquote(path), :non_neg_integer, other)
+      end
+    end
+  end
+
+  defp decode_value_ast(value, :pos_integer, path, _opts, _source) do
+    quote do
+      case unquote(value) do
+        integer when is_integer(integer) and integer > 0 -> integer
+        other -> JSONCodec.Decoder.type_error!(unquote(path), :pos_integer, other)
+      end
+    end
+  end
+
+  defp decode_value_ast(value, :boolean, path, _opts, _source) do
+    quote do
+      case unquote(value) do
+        boolean when is_boolean(boolean) -> boolean
+        other -> JSONCodec.Decoder.type_error!(unquote(path), :boolean, other)
+      end
+    end
+  end
+
+  defp decode_value_ast(value, :atom, path, [atom: :unsafe], _source) do
+    quote do
+      case unquote(value) do
+        atom when is_atom(atom) -> atom
+        string when is_binary(string) -> String.to_atom(string)
+        other -> JSONCodec.Decoder.type_error!(unquote(path), :atom, other)
+      end
+    end
+  end
+
+  defp decode_value_ast(value, {:enum, values} = type, path, _opts, _source) do
+    fallback = Macro.var(:other, nil)
+
+    clauses =
+      values
+      |> Enum.flat_map(fn atom ->
+        [
+          {:->, [], [[atom], atom]},
+          {:->, [], [[Atom.to_string(atom)], atom]}
+        ]
+      end)
+      |> Kernel.++([
+        {:->, [],
+         [
+           [fallback],
+           quote(
+             do:
+               JSONCodec.Decoder.type_error!(
+                 unquote(path),
+                 unquote(Macro.escape(type)),
+                 unquote(fallback)
+               )
+           )
+         ]}
+      ])
+
+    {:case, [], [value, [do: clauses]]}
+  end
+
+  defp decode_value_ast(value, {:list, :atom} = type, path, [atom: :unsafe], _source) do
+    quote do
+      case unquote(value) do
+        values when is_list(values) ->
+          Enum.map(values, fn
+            atom when is_atom(atom) ->
+              atom
+
+            string when is_binary(string) ->
+              String.to_atom(string)
+
+            other ->
+              JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), other)
+          end)
+
+        other ->
+          JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), other)
+      end
+    end
+  end
+
+  defp decode_value_ast(value, {:list, module} = type, path, _opts, _source)
+       when is_atom(module) do
+    if primitive_type?(module),
+      do: generic_decode_ast(value, type, path, [], quote(do: map)),
+      else: list_module_decode_ast(value, module, type, path)
+  end
+
+  defp decode_value_ast(value, {:nullable, type}, path, opts, source) do
+    quote do
+      case unquote(value) do
+        nil -> nil
+        value -> unquote(decode_value_ast(quote(do: value), type, path, opts, source))
+      end
+    end
+  end
+
+  defp decode_value_ast(value, module, path, opts, source) when is_atom(module) do
+    if primitive_type?(module) do
+      generic_decode_ast(value, module, path, opts, source)
+    else
+      quote do
+        case unquote(value) do
+          map when is_map(map) -> unquote(module).from_map!(map)
+          other -> JSONCodec.Decoder.type_error!(unquote(path), unquote(module), other)
+        end
+      end
+    end
+  end
+
+  defp decode_value_ast(value, type, path, opts, source) do
+    generic_decode_ast(value, type, path, opts, source)
+  end
+
+  defp list_module_decode_ast(value, module, type, path) do
+    quote do
+      case unquote(value) do
+        values when is_list(values) ->
+          Enum.map(values, fn
+            map when is_map(map) ->
+              unquote(module).from_map!(map)
+
+            other ->
+              JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), other)
+          end)
+
+        other ->
+          JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), other)
+      end
+    end
+  end
+
+  defp generic_decode_ast(value, type, path, opts, source) do
+    quote do
+      JSONCodec.Decoder.decode(
+        unquote(value),
+        unquote(Macro.escape(type)),
+        unquote(path),
+        unquote(Macro.escape(opts)),
+        unquote(source)
+      )
+    end
+  end
+
+  defp primitive_type?(type) do
+    type in [
+      :any,
+      :term,
+      :string,
+      :integer,
+      :non_neg_integer,
+      :pos_integer,
+      :float,
+      :number,
+      :boolean,
+      :atom
+    ]
   end
 
   defp transform_ast(decoded, nil), do: decoded

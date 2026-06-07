@@ -191,18 +191,18 @@ Machine used for this snapshot: Apple M5, Elixir 1.20, Erlang/OTP 29. Payload: `
 
 | Case | ips | avg | memory |
 |---|---:|---:|---:|
-| handwritten map→struct | 3722.88 | 0.27 ms | 0.25 MB |
-| JSONCodec map→struct | 1891.19 | 0.53 ms | 0.43 MB |
-| Jason.decode only | 1280.19 | 0.78 ms | 1.10 MB |
-| handwritten Jason+struct | 918.12 | 1.09 ms | 1.34 MB |
-| Spectral pre-decoded | 882.38 | 1.13 ms | 3.23 MB |
-| JSONCodec Jason+struct | 717.41 | 1.39 ms | 1.53 MB |
-| Spectral native JSON | 596.49 | 1.68 ms | 4.06 MB |
+| handwritten map→struct | 3973.55 | 0.25 ms | 0.25 MB |
+| JSONCodec map→struct | 3398.61 | 0.29 ms | 0.54 MB |
+| Jason.decode only | 1403.85 | 0.71 ms | 1.10 MB |
+| Spectral pre-decoded | 1255.44 | 0.80 ms | 3.23 MB |
+| handwritten Jason+struct | 959.70 | 1.04 ms | 1.34 MB |
+| JSONCodec Jason+struct | 908.78 | 1.10 ms | 1.64 MB |
+| Spectral native JSON | 658.07 | 1.52 ms | 4.06 MB |
 
 Interpretation:
 
-- `JSONCodec` is about 2× slower than this handwritten decoder on decoded maps, but still much faster and lower allocation than validation/type-walking approaches.
-- End-to-end, JSON parsing dominates. `JSONCodec.decode!/1` is ~1.3× slower than handwritten Jason+struct in this MVP and ~1.2× faster than Spectral native JSON on this shape.
+- `JSONCodec` is about 1.17× slower than this handwritten decoder on decoded maps, while still much faster and lower allocation than validation/type-walking approaches.
+- End-to-end, JSON parsing dominates. `JSONCodec.decode!/1` is within ~1.06× of handwritten Jason+struct in this MVP and ~1.38× faster than Spectral native JSON on this shape.
 - The goal is not to beat perfect handwritten code immediately; it is to make the generated path close enough that hand-written decoders disappear.
 
 ## Installation
