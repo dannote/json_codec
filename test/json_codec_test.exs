@@ -86,9 +86,10 @@ defmodule JSONCodecTest do
 
     @type t :: %__MODULE__{prefix: String.t(), icons: %{String.t() => IconValue.t()}}
 
-    codec(:icons, values: :icon_value)
+    codec(:icons, values: :icon_value, values_source: :icon_defaults)
 
-    def icon_value(name, data, _source), do: Map.put(data, "name", name)
+    def icon_defaults(source), do: Map.take(source, ["width"])
+    def icon_value(name, data, defaults), do: defaults |> Map.merge(data) |> Map.put("name", name)
   end
 
   test "decodes nested structs with computed fields" do
@@ -143,7 +144,15 @@ defmodule JSONCodecTest do
     assert %IconSet{icons: %{"home" => %IconValue{name: "home", body: "<path/>", width: 24}}} =
              IconSet.from_map!(%{
                "prefix" => "demo",
+               "width" => 16,
                "icons" => %{"home" => %{"body" => "<path/>", "width" => 24}}
+             })
+
+    assert %IconSet{icons: %{"home" => %IconValue{name: "home", body: "<path/>", width: 16}}} =
+             IconSet.from_map!(%{
+               "prefix" => "demo",
+               "width" => 16,
+               "icons" => %{"home" => %{"body" => "<path/>"}}
              })
   end
 

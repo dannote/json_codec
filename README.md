@@ -123,6 +123,7 @@ codec :not_found, as: "not_found"
 codec :variable_names, atom: :unsafe
 codec :rotate, transform: :normalize_rotate
 codec :icons, values: :icon_value
+codec :icons, values: :icon_value, values_source: :icon_defaults
 ```
 
 Local callback atoms are expanded to functions in the same module:
@@ -133,6 +134,9 @@ codec :rotate, transform: :normalize_rotate
 
 codec :icons, values: :icon_value
 # calls icon_value(key, value, source_map)
+
+codec :icons, values: :icon_value, values_source: :icon_defaults
+# calls icon_defaults(source_map) once, then icon_value(key, value, defaults) for each entry
 ```
 
 Remote captures are also supported:
@@ -140,6 +144,7 @@ Remote captures are also supported:
 ```elixir
 codec :rotate, transform: &MyTransforms.normalize_rotate/1
 codec :icons, values: &MyTransforms.icon_value/3
+codec :icons, values: &MyTransforms.icon_value/3, values_source: &MyTransforms.icon_defaults/1
 ```
 
 Atom policy is explicit:
@@ -205,7 +210,7 @@ Interpretation:
 
 - With `fast_path: :json`, `JSONCodec` is roughly tied with this handwritten decoder on decoded JSON maps, while still providing a generic fallback path.
 - End-to-end, JSON parsing dominates. `JSONCodec.decode!/1` is within ~1.01× of handwritten Jason+struct in this MVP and ~1.49× faster than Spectral native JSON on this shape.
-- On map-heavy Iconify-like data (`mix run bench/iconify_like.exs`), JSONCodec is currently slower than handwritten because the codec path still performs per-value callback/default merging and field validation for every nested icon. That benchmark exists to keep future optimization honest across a different shape.
+- On map-heavy Iconify-like data (`mix run bench/iconify_like.exs`), `values_source:` avoids recomputing inherited defaults for every map entry. JSONCodec still trails handwritten there because it keeps nested field validation and generic callback semantics, but the benchmark exists to keep future optimization honest across a different shape.
 - The goal is not to beat perfect handwritten code on every shape immediately; it is to make the generated path close enough that hand-written decoders disappear.
 
 ## Installation

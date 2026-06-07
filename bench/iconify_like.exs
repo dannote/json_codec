@@ -70,11 +70,12 @@ defmodule Bench.IconifyLike.Codec.Set do
           top: integer()
         }
 
-  codec :icons, values: :icon_value
+  codec :icons, values: :icon_value, values_source: :icon_defaults
 
-  def icon_value(name, data, source) do
-    source
-    |> Map.take(["left", "top", "width", "height", "rotate", "hFlip", "vFlip"])
+  def icon_defaults(source), do: Map.take(source, ["left", "top", "width", "height", "rotate", "hFlip", "vFlip"])
+
+  def icon_value(name, data, defaults) do
+    defaults
     |> Map.merge(data)
     |> Map.put("name", name)
   end
