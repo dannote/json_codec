@@ -73,6 +73,8 @@ defmodule JSONCodec do
     %{
       fields: fields,
       build_pairs: Enum.map(fields, &field_pair_ast/1),
+      fast_build_pairs: fast_path_field_pairs(fields, codec_options),
+      fast_pattern: fast_path_pattern(fields, codec_options),
       computed_result: computed_result_ast(computed)
     }
   end
@@ -93,9 +95,12 @@ defmodule JSONCodec do
   defp generated_codec_ast(%{
          fields: fields,
          build_pairs: build_pairs,
+         fast_build_pairs: fast_build_pairs,
+         fast_pattern: fast_pattern,
          computed_result: computed_result
        }) do
     escaped_fields = Macro.escape(fields)
+    fast_from_map = fast_from_map_ast(fast_pattern, fast_build_pairs, computed_result)
 
     quote do
       @doc false
@@ -117,6 +122,8 @@ defmodule JSONCodec do
       end
 
       @doc "Builds this struct from a decoded JSON map, raising on failure."
+      unquote(fast_from_map)
+
       def from_map!(map) when is_map(map) do
         struct = %__MODULE__{unquote_splicing(build_pairs)}
         unquote(computed_result)
@@ -321,29 +328,73 @@ defmodule JSONCodec do
     first <> Enum.map_join(rest, &String.capitalize/1)
   end
 
-  defp field_pair_ast(field) do
-    {field.name, field_value_ast(field)}
+  defp fast_path_field_pairs(fields, opts) do
+    required = required_fields(fields)
+
+    if Keyword.get(opts, :fast_path) == :json and required != [] do
+      required_vars = Map.new(required, &{&1.name, Macro.var(&1.name, nil)})
+      Enum.map(fields, &field_pair_ast(&1, fast_path_raw(&1, required_vars)))
+    end
   end
 
-  defp field_value_ast(field) do
+  defp fast_path_pattern(fields, opts) do
+    required = required_fields(fields)
+
+    if Keyword.get(opts, :fast_path) == :json and required != [] do
+      {:%{}, [], Enum.map(required, &{&1.json, Macro.var(&1.name, nil)})}
+    end
+  end
+
+  defp fast_path_raw(field, required_vars) do
+    case Map.fetch(required_vars, field.name) do
+      {:ok, var} ->
+        {:raw, var}
+
+      :error ->
+        {:json, field.json}
+    end
+  end
+
+  defp required_fields(fields), do: Enum.filter(fields, & &1.required)
+
+  defp fast_from_map_ast(nil, _build_pairs, _computed_result), do: nil
+
+  defp fast_from_map_ast(pattern, build_pairs, computed_result) do
+    quote do
+      def from_map!(unquote(pattern) = map) do
+        struct = %__MODULE__{unquote_splicing(build_pairs)}
+        unquote(computed_result)
+      end
+    end
+  end
+
+  defp field_pair_ast(field), do: field_pair_ast(field, :generic)
+
+  defp field_pair_ast(field, raw_strategy) do
+    {field.name, field_value_ast(field, raw_strategy)}
+  end
+
+  defp field_value_ast(field, raw_strategy) do
     decoder = quote(do: JSONCodec.Decoder)
     atom = field.name
     json = field.json
     type = Macro.escape(field.type)
     path = [field.name]
 
-    raw =
-      quote do
-        unquote(decoder).fetch_field(map, unquote(atom), unquote(json))
-      end
+    raw = raw_value_ast(raw_strategy, decoder, atom, json)
 
     present =
-      if field.required do
-        quote do
-          unquote(decoder).required!(unquote(raw), unquote(path), unquote(type))
-        end
-      else
-        raw
+      cond do
+        match?({:raw, _}, raw_strategy) ->
+          raw
+
+        field.required ->
+          quote do
+            unquote(decoder).required!(unquote(raw), unquote(path), unquote(type))
+          end
+
+        true ->
+          raw
       end
 
     defaulted =
@@ -384,6 +435,20 @@ defmodule JSONCodec do
       end
 
     transform_ast(decoded, Keyword.get(field.opts, :transform))
+  end
+
+  defp raw_value_ast({:raw, value}, _decoder, _atom, _json), do: value
+
+  defp raw_value_ast({:json, json}, _decoder, _atom, _json) do
+    quote do
+      :maps.get(unquote(json), map, :__json_codec_missing__)
+    end
+  end
+
+  defp raw_value_ast(:generic, decoder, atom, json) do
+    quote do
+      unquote(decoder).fetch_field(map, unquote(atom), unquote(json))
+    end
   end
 
   defp non_nil_type({:nullable, type}), do: type

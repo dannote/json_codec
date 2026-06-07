@@ -59,6 +59,18 @@ defmodule JSONCodecTest do
           }
   end
 
+  defmodule FastPackageManifest do
+    use JSONCodec, case: :camel, fast_path: :json
+
+    defstruct [:name, :version, dev_dependencies: %{}]
+
+    @type t :: %__MODULE__{
+            name: String.t(),
+            version: String.t() | nil,
+            dev_dependencies: %{String.t() => String.t()}
+          }
+  end
+
   test "decodes nested structs with computed fields" do
     map = %{
       "from" => %{
@@ -91,6 +103,20 @@ defmodule JSONCodecTest do
     assert manifest.name == "demo"
     assert manifest.version == nil
     assert manifest.dev_dependencies == %{"jason" => "~> 1.4"}
+  end
+
+  test "fast JSON path decodes string keys and falls back for atom keys" do
+    assert %FastPackageManifest{name: "demo", dev_dependencies: %{"jason" => "~> 1.4"}} =
+             FastPackageManifest.from_map!(%{
+               "name" => "demo",
+               "devDependencies" => %{"jason" => "~> 1.4"}
+             })
+
+    assert %FastPackageManifest{name: "demo", dev_dependencies: %{"jason" => "~> 1.4"}} =
+             FastPackageManifest.from_map!(%{
+               name: "demo",
+               dev_dependencies: %{"jason" => "~> 1.4"}
+             })
   end
 
   test "returns structured errors" do

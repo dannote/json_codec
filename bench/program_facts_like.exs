@@ -52,7 +52,7 @@ defmodule Bench.Hand.Manifest do
 end
 
 defmodule Bench.Codec.FunctionID do
-  use JSONCodec
+  use JSONCodec, fast_path: :json
 
   defstruct [:module, :function, :arity, :id]
 
@@ -67,7 +67,7 @@ defmodule Bench.Codec.FunctionID do
 end
 
 defmodule Bench.Codec.DataRef do
-  use JSONCodec
+  use JSONCodec, fast_path: :json
 
   defstruct [:type, :function, :name, :index]
 
@@ -82,7 +82,7 @@ defmodule Bench.Codec.DataRef do
 end
 
 defmodule Bench.Codec.DataFlow do
-  use JSONCodec
+  use JSONCodec, fast_path: :json
 
   defstruct [:from, :to, through: [], variable_names: [], branch: nil]
 
@@ -98,7 +98,7 @@ defmodule Bench.Codec.DataFlow do
 end
 
 defmodule Bench.Codec.Manifest do
-  use JSONCodec
+  use JSONCodec, fast_path: :json
 
   defstruct data_flows: []
 

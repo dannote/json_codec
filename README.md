@@ -100,7 +100,7 @@ Most fields need no JSONCodec-specific declaration. Defaults come from `defstruc
 
 ```elixir
 defmodule PackageManifest do
-  use JSONCodec, case: :camel
+  use JSONCodec, case: :camel, fast_path: :json
 
   defstruct [:name, :version, dev_dependencies: %{}]
 
@@ -113,6 +113,8 @@ end
 ```
 
 `:camel` maps `:dev_dependencies` to `"devDependencies"` automatically.
+
+`fast_path: :json` generates an optimized first `from_map!/1` clause for normal Jason-decoded JSON maps with string keys. If that fast string-key clause does not match, JSONCodec falls back to the full generic decoder, including atom-key lookup and detailed missing-field handling.
 
 Use `codec/2` for exceptions and special behavior:
 
@@ -191,18 +193,18 @@ Machine used for this snapshot: Apple M5, Elixir 1.20, Erlang/OTP 29. Payload: `
 
 | Case | ips | avg | memory |
 |---|---:|---:|---:|
-| handwritten map→struct | 4128.65 | 0.24 ms | 0.25 MB |
-| JSONCodec map→struct | 3423.44 | 0.29 ms | 0.35 MB |
-| Jason.decode only | 1388.73 | 0.72 ms | 1.10 MB |
-| Spectral pre-decoded | 1246.21 | 0.80 ms | 3.23 MB |
-| handwritten Jason+struct | 970.33 | 1.03 ms | 1.34 MB |
-| JSONCodec Jason+struct | 929.90 | 1.08 ms | 1.45 MB |
-| Spectral native JSON | 641.97 | 1.56 ms | 4.06 MB |
+| JSONCodec map→struct | 4119.81 | 0.24 ms | 0.35 MB |
+| handwritten map→struct | 4009.64 | 0.25 ms | 0.25 MB |
+| Jason.decode only | 1378.28 | 0.73 ms | 1.10 MB |
+| Spectral pre-decoded | 1252.96 | 0.80 ms | 3.23 MB |
+| handwritten Jason+struct | 980.43 | 1.02 ms | 1.34 MB |
+| JSONCodec Jason+struct | 972.52 | 1.03 ms | 1.45 MB |
+| Spectral native JSON | 654.31 | 1.53 ms | 4.06 MB |
 
 Interpretation:
 
-- `JSONCodec` is about 1.21× slower than this handwritten decoder on decoded maps, while still much faster and lower allocation than validation/type-walking approaches.
-- End-to-end, JSON parsing dominates. `JSONCodec.decode!/1` is within ~1.04× of handwritten Jason+struct in this MVP and ~1.45× faster than Spectral native JSON on this shape.
+- With `fast_path: :json`, `JSONCodec` is roughly tied with this handwritten decoder on decoded JSON maps, while still providing a generic fallback path.
+- End-to-end, JSON parsing dominates. `JSONCodec.decode!/1` is within ~1.01× of handwritten Jason+struct in this MVP and ~1.49× faster than Spectral native JSON on this shape.
 - The goal is not to beat perfect handwritten code immediately; it is to make the generated path close enough that hand-written decoders disappear.
 
 ## Installation
