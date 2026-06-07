@@ -10,15 +10,9 @@ defmodule JSONCodec.Decoder do
   def missing, do: @missing
 
   def fetch_field(map, atom_key, json_key) when is_map(map) do
-    case Map.fetch(map, json_key) do
-      {:ok, value} ->
-        value
-
-      :error ->
-        case Map.fetch(map, atom_key) do
-          {:ok, value} -> value
-          :error -> @missing
-        end
+    case :maps.get(json_key, map, @missing) do
+      @missing -> :maps.get(atom_key, map, @missing)
+      value -> value
     end
   end
 
