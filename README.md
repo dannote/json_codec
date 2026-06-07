@@ -252,6 +252,8 @@ Not published yet. For now:
 
 ## Development
 
+See [CHANGELOG.md](CHANGELOG.md) for release notes.
+
 This project was bootstrapped with VibeKit conventions.
 
 ```sh
