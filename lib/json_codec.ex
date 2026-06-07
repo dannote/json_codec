@@ -538,6 +538,13 @@ defmodule JSONCodec do
     {:case, [], [value, [do: clauses]]}
   end
 
+  defp decode_value_ast(value, {:map, :string, module} = type, path, opts, source)
+       when is_atom(module) do
+    if primitive_type?(module),
+      do: generic_decode_ast(value, type, path, opts, source),
+      else: map_module_decode_ast(value, module, type, path, opts, source)
+  end
+
   defp decode_value_ast(value, {:list, :atom} = type, path, [atom: :unsafe], _source) do
     quote do
       case unquote(value) do
@@ -607,6 +614,42 @@ defmodule JSONCodec do
         other ->
           JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), other)
       end
+    end
+  end
+
+  defp map_module_decode_ast(value, module, type, path, opts, source) do
+    quote do
+      case unquote(value) do
+        entries when is_map(entries) ->
+          Map.new(entries, fn
+            {key, item} when is_binary(key) ->
+              item = unquote(map_value_ast(quote(do: item), quote(do: key), source, opts))
+              {key, unquote(module).from_map!(item)}
+
+            {key, _item} ->
+              JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), key)
+          end)
+
+        other ->
+          JSONCodec.Decoder.type_error!(unquote(path), unquote(Macro.escape(type)), other)
+      end
+    end
+  end
+
+  defp map_value_ast(item, key, source, opts) do
+    case Keyword.get(opts, :values) do
+      nil ->
+        item
+
+      {:local, module, fun, 3} ->
+        quote do
+          unquote(module).unquote(fun)(unquote(key), unquote(item), unquote(source))
+        end
+
+      transform ->
+        quote do
+          unquote(Macro.escape(transform)).(unquote(key), unquote(item), unquote(source))
+        end
     end
   end
 

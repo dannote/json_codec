@@ -205,7 +205,8 @@ Interpretation:
 
 - With `fast_path: :json`, `JSONCodec` is roughly tied with this handwritten decoder on decoded JSON maps, while still providing a generic fallback path.
 - End-to-end, JSON parsing dominates. `JSONCodec.decode!/1` is within ~1.01× of handwritten Jason+struct in this MVP and ~1.49× faster than Spectral native JSON on this shape.
-- The goal is not to beat perfect handwritten code immediately; it is to make the generated path close enough that hand-written decoders disappear.
+- On map-heavy Iconify-like data (`mix run bench/iconify_like.exs`), JSONCodec is currently slower than handwritten because the codec path still performs per-value callback/default merging and field validation for every nested icon. That benchmark exists to keep future optimization honest across a different shape.
+- The goal is not to beat perfect handwritten code on every shape immediately; it is to make the generated path close enough that hand-written decoders disappear.
 
 ## Installation
 

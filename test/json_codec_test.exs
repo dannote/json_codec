@@ -71,6 +71,26 @@ defmodule JSONCodecTest do
           }
   end
 
+  defmodule IconValue do
+    use JSONCodec, fast_path: :json
+
+    defstruct [:name, :body, width: 16]
+
+    @type t :: %__MODULE__{name: String.t(), body: String.t(), width: pos_integer()}
+  end
+
+  defmodule IconSet do
+    use JSONCodec, fast_path: :json
+
+    defstruct [:prefix, icons: %{}]
+
+    @type t :: %__MODULE__{prefix: String.t(), icons: %{String.t() => IconValue.t()}}
+
+    codec(:icons, values: :icon_value)
+
+    def icon_value(name, data, _source), do: Map.put(data, "name", name)
+  end
+
   test "decodes nested structs with computed fields" do
     map = %{
       "from" => %{
@@ -116,6 +136,14 @@ defmodule JSONCodecTest do
              FastPackageManifest.from_map!(%{
                name: "demo",
                dev_dependencies: %{"jason" => "~> 1.4"}
+             })
+  end
+
+  test "fast JSON path decodes map values through local callback" do
+    assert %IconSet{icons: %{"home" => %IconValue{name: "home", body: "<path/>", width: 24}}} =
+             IconSet.from_map!(%{
+               "prefix" => "demo",
+               "icons" => %{"home" => %{"body" => "<path/>", "width" => 24}}
              })
   end
 
