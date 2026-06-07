@@ -135,9 +135,12 @@ defmodule JSONCodec do
       end
 
       @doc "Returns a JSON Schema-compatible schema map."
-      def json_schema do
+      def schema do
         JSONCodec.Schema.object(__MODULE__)
       end
+
+      @doc "Returns a JSON Schema-compatible schema map."
+      def json_schema, do: schema()
     end
   end
 
@@ -174,7 +177,10 @@ defmodule JSONCodec do
   def to_map(value), do: value
 
   @doc "Returns a JSON Schema-compatible schema map for a JSONCodec module."
-  def json_schema(module), do: JSONCodec.Schema.object(module)
+  def schema(module), do: JSONCodec.Schema.object(module)
+
+  @doc "Returns a JSON Schema-compatible schema map for a JSONCodec module."
+  def json_schema(module), do: schema(module)
 
   defp build_fields(module, struct_fields, type_fields, field_options, codec_options, env) do
     defaults = struct_defaults(struct_fields)

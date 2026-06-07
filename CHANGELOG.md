@@ -1,6 +1,10 @@
 # Changelog
 
-## 0.1.0 - Unreleased
+## 0.1.1 - 2026-06-07
+
+- Improve README formatting for code identifiers in rendered docs.
+
+## 0.1.0 - 2026-06-07
 
 Initial release.
 

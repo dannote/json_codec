@@ -4,7 +4,7 @@ Compile-time generated codecs for JSON-shaped Elixir structs.
 
 `JSONCodec` is **not** another JSON parser. It uses [`Jason`](https://hex.pm/packages/jason) for parsing and focuses on the annoying part that tends to be rewritten in every Elixir project: converting decoded string-keyed JSON maps into nested structs with aliases, defaults, computed fields, explicit atom policy, and schema export.
 
-JSONCodec uses normal Elixir declarations as the source of truth:
+`JSONCodec` uses normal Elixir declarations as the source of truth:
 
 - `defstruct` for fields and defaults
 - `@type t` for field types
@@ -52,7 +52,7 @@ FunctionID.decode(json)
 FunctionID.from_map!(map)
 FunctionID.from_map(map)
 FunctionID.to_map(struct)
-FunctionID.json_schema()
+FunctionID.schema()
 ```
 
 Top-level helpers are also available:
@@ -60,7 +60,7 @@ Top-level helpers are also available:
 ```elixir
 JSONCodec.decode!(json, FunctionID)
 JSONCodec.from_map!(map, FunctionID)
-JSONCodec.json_schema(FunctionID)
+JSONCodec.schema(FunctionID)
 ```
 
 ## Why another JSON library?
@@ -84,15 +84,15 @@ end
 
 | Library | Main job | Struct decode | Nested structs | Field aliases | Computed fields | Atom policy | Hot-path goal |
 |---|---|---:|---:|---:|---:|---:|---:|
-| Jason | JSON parser/encoder | No | No | No | No | key option only | parsing speed |
-| Poison `as:` | parser + old struct decode | Yes | Limited | No | No | key option | legacy parser path |
-| Spectral | typespec-driven serialization/schema | Yes | Yes | Yes | via codecs | safe existing atoms | validation/type coverage |
-| Exdantic/Elixact/Zoi/Drops | validation frameworks | Sometimes | Yes | Sometimes | Yes | framework-specific | validation UX |
-| Tarams | Phoenix params casting | Map output | Nested maps | Yes | transforms | casting-specific | request params |
-| SimpleSchema | JSON validation + struct | Yes | Yes | Yes | custom callbacks | limited | validation pipeline |
+| `Jason` | JSON parser/encoder | No | No | No | No | key option only | parsing speed |
+| `Poison` `as:` | parser + old struct decode | Yes | Limited | No | No | key option | legacy parser path |
+| `Spectral` | typespec-driven serialization/schema | Yes | Yes | Yes | via codecs | safe existing atoms | validation/type coverage |
+| `Exdantic`/`Elixact`/`Zoi`/`Drops` | validation frameworks | Sometimes | Yes | Sometimes | Yes | framework-specific | validation UX |
+| `Tarams` | Phoenix params casting | Map output | Nested maps | Yes | transforms | casting-specific | request params |
+| `SimpleSchema` | JSON validation + struct | Yes | Yes | Yes | custom callbacks | limited | validation pipeline |
 | **JSONCodec** | generated JSON-shaped struct codecs | **Yes** | **Yes** | **Yes** | **Yes** | **explicit per field** | **near-handwritten decode** |
 
-Use Jason for parsing. Use Tarams/Ecto for Phoenix params. Use a validation framework when rich validation is the main goal. Use `JSONCodec` when you own the struct shape and want fast, boring, explicit map-to-struct codecs.
+Use `Jason` for parsing. Use `Tarams`/`Ecto` for Phoenix params. Use a validation framework when rich validation is the main goal. Use `JSONCodec` when you own the struct shape and want fast, boring, explicit map-to-struct codecs.
 
 ## Codec metadata
 
@@ -114,7 +114,7 @@ end
 
 `:camel` maps `:dev_dependencies` to `"devDependencies"` automatically.
 
-`fast_path: :json` generates an optimized first `from_map!/1` clause for normal Jason-decoded JSON maps with string keys. If that fast string-key clause does not match, JSONCodec falls back to the full generic decoder, including atom-key lookup and detailed missing-field handling.
+`fast_path: :json` generates an optimized first `from_map!/1` clause for normal `Jason`-decoded JSON maps with string keys. If that fast string-key clause does not match, `JSONCodec` falls back to the full generic decoder, including atom-key lookup and detailed missing-field handling.
 
 Use `codec/2` for exceptions and special behavior:
 
@@ -143,7 +143,7 @@ codec :icons, values: &MyTransforms.icon_value/3
 
 ### Advanced map value callbacks
 
-For map fields, `values:` transforms each raw map value before JSONCodec decodes it as the declared value type:
+For map fields, `values:` transforms each raw map value before `JSONCodec` decodes it as the declared value type:
 
 ```elixir
 codec :icons, values: :icon_value
@@ -185,7 +185,7 @@ codec :variable_name, atom: :unsafe
 
 `:unsafe` uses `String.to_atom/1`; only use it for bounded/trusted internal data.
 
-## Supported MVP type shapes
+## Supported type shapes
 
 Read from `@type t`:
 
@@ -209,9 +209,11 @@ Read from `@type t`:
 Each codec module exports a JSON Schema-compatible map:
 
 ```elixir
-FunctionID.json_schema()
-JSONCodec.json_schema(FunctionID)
+FunctionID.schema()
+JSONCodec.schema(FunctionID)
 ```
+
+`json_schema/0` and `JSONCodec.json_schema/1` are also available as explicit aliases.
 
 This is intentionally compatible with the direction of `JSONSpec`: codecs are the fast construction layer; schema validation can remain a separate layer.
 
@@ -227,27 +229,25 @@ Machine used for this snapshot: Apple M5, Elixir 1.20, Erlang/OTP 29. Payload: `
 
 | Case | ips | avg | memory |
 |---|---:|---:|---:|
-| JSONCodec map→struct | 4119.81 | 0.24 ms | 0.35 MB |
+| `JSONCodec` map→struct | 4119.81 | 0.24 ms | 0.35 MB |
 | handwritten map→struct | 4009.64 | 0.25 ms | 0.25 MB |
-| Jason.decode only | 1378.28 | 0.73 ms | 1.10 MB |
-| Spectral pre-decoded | 1252.96 | 0.80 ms | 3.23 MB |
-| handwritten Jason+struct | 980.43 | 1.02 ms | 1.34 MB |
-| JSONCodec Jason+struct | 972.52 | 1.03 ms | 1.45 MB |
-| Spectral native JSON | 654.31 | 1.53 ms | 4.06 MB |
+| `Jason.decode` only | 1378.28 | 0.73 ms | 1.10 MB |
+| `Spectral` pre-decoded | 1252.96 | 0.80 ms | 3.23 MB |
+| handwritten `Jason`+struct | 980.43 | 1.02 ms | 1.34 MB |
+| `JSONCodec` `Jason`+struct | 972.52 | 1.03 ms | 1.45 MB |
+| `Spectral` native JSON | 654.31 | 1.53 ms | 4.06 MB |
 
 Interpretation:
 
 - With `fast_path: :json`, `JSONCodec` is roughly tied with this handwritten decoder on decoded JSON maps, while still providing a generic fallback path.
-- End-to-end, JSON parsing dominates. `JSONCodec.decode!/1` is within ~1.01× of handwritten Jason+struct in this MVP and ~1.49× faster than Spectral native JSON on this shape.
-- On map-heavy Iconify-like data (`mix run bench/iconify_like.exs`), `values_source:` avoids recomputing inherited defaults for every map entry. For advanced map-heavy decoders, `decode_values:` can return the final decoded map value directly when a custom decoder is clearer or faster than transforming a raw map and then invoking the generated nested decoder; in the Iconify-like benchmark this brings JSONCodec close to handwritten allocation.
+- End-to-end, JSON parsing dominates. `JSONCodec.decode!/1` is within ~1.01× of handwritten `Jason`+struct and ~1.49× faster than `Spectral` native JSON on this shape.
+- On map-heavy Iconify-like data (`mix run bench/iconify_like.exs`), `values_source:` avoids recomputing inherited defaults for every map entry. For advanced map-heavy decoders, `decode_values:` can return the final decoded map value directly when a custom decoder is clearer or faster than transforming a raw map and then invoking the generated nested decoder; in the Iconify-like benchmark this brings `JSONCodec` close to handwritten allocation.
 - The goal is not to beat perfect handwritten code on every shape immediately; it is to make the generated path close enough that hand-written decoders disappear.
 
 ## Installation
 
-Not published yet. For now:
-
 ```elixir
-{:json_codec, path: "../json_codec"}
+{:json_codec, "~> 0.1.1"}
 ```
 
 ## Development
