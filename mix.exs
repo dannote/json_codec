@@ -38,7 +38,8 @@ defmodule JSONCodec.MixProject do
       {:reach, "~> 2.0", only: [:dev, :test], runtime: false},
       {:ex_dna, "~> 1.0", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0", only: [:dev, :test], runtime: false},
-      {:credo, "~> 1.0", only: [:dev, :test], runtime: false}
+      {:credo, "~> 1.0", only: [:dev, :test], runtime: false},
+      {:ex_doc, "~> 0.38", only: :dev, runtime: false}
     ]
   end
 
