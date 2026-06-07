@@ -55,28 +55,46 @@ defmodule JSONCodec do
     end
   end
 
-  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defmacro __before_compile__(env) do
+    env
+    |> before_compile_context()
+    |> generated_codec_ast()
+  end
+
+  defp before_compile_context(env) do
     module = env.module
     codec_options = Module.get_attribute(module, :json_codec_options) || []
     struct_fields = Module.get_attribute(module, :json_codec_struct_fields) || []
-
-    field_options =
-      module
-      |> Module.get_attribute(:json_codec_field_options)
-      |> Enum.reverse()
-      |> Map.new()
-
-    computed =
-      module
-      |> Module.get_attribute(:json_codec_computed)
-      |> Enum.reverse()
-
+    field_options = field_options(module)
+    computed = computed_fields(module)
     type_fields = parse_type_fields(module, env)
     fields = build_fields(module, struct_fields, type_fields, field_options, codec_options, env)
 
-    build_pairs = Enum.map(fields, &field_pair_ast/1)
-    computed_result = computed_result_ast(computed)
+    %{
+      fields: fields,
+      build_pairs: Enum.map(fields, &field_pair_ast/1),
+      computed_result: computed_result_ast(computed)
+    }
+  end
+
+  defp field_options(module) do
+    module
+    |> Module.get_attribute(:json_codec_field_options)
+    |> Enum.reverse()
+    |> Map.new()
+  end
+
+  defp computed_fields(module) do
+    module
+    |> Module.get_attribute(:json_codec_computed)
+    |> Enum.reverse()
+  end
+
+  defp generated_codec_ast(%{
+         fields: fields,
+         build_pairs: build_pairs,
+         computed_result: computed_result
+       }) do
     escaped_fields = Macro.escape(fields)
 
     quote do
