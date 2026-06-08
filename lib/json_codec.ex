@@ -642,25 +642,54 @@ defmodule JSONCodec do
         entries when is_map(entries) ->
           values_source = unquote(values_source_ast(source, opts))
 
-          Map.new(entries, fn
-            {key, item} when is_binary(key) ->
-              {key,
-               unquote(
-                 map_decoded_value_ast(
-                   quote(do: item),
-                   quote(do: key),
-                   quote(do: values_source),
-                   module,
-                   opts
-                 )
-               )}
-
-            {key, _item} ->
-              JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), key)
-          end)
+          unquote(map_entries_decode_ast(module, opts, path, escaped_type))
 
         other ->
           JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), other)
+      end
+    end
+  end
+
+  defp map_entries_decode_ast(module, opts, path, escaped_type) do
+    if Keyword.has_key?(opts, :decode_values) do
+      quote do
+        :maps.map(
+          fn
+            key, item when is_binary(key) ->
+              unquote(
+                map_decoded_value_ast(
+                  quote(do: item),
+                  quote(do: key),
+                  quote(do: values_source),
+                  module,
+                  opts
+                )
+              )
+
+            key, _item ->
+              JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), key)
+          end,
+          entries
+        )
+      end
+    else
+      quote do
+        Map.new(entries, fn
+          {key, item} when is_binary(key) ->
+            {key,
+             unquote(
+               map_decoded_value_ast(
+                 quote(do: item),
+                 quote(do: key),
+                 quote(do: values_source),
+                 module,
+                 opts
+               )
+             )}
+
+          {key, _item} ->
+            JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), key)
+        end)
       end
     end
   end
