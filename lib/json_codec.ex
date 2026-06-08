@@ -424,11 +424,7 @@ defmodule JSONCodec do
   defp defaulted_field_ast(present, _field, _decoder), do: present
 
   defp decoded_field_ast(defaulted, %{required: true} = field, path) do
-    quote do
-      value = unquote(defaulted)
-
-      unquote(decode_value_ast(quote(do: value), field.type, path, field.opts, quote(do: map)))
-    end
+    decode_value_ast(defaulted, field.type, path, field.opts, quote(do: map))
   end
 
   defp decoded_field_ast(defaulted, field, path) do
