@@ -654,8 +654,8 @@ defmodule JSONCodec do
     if Keyword.has_key?(opts, :decode_values) do
       quote do
         :maps.map(
-          fn
-            key, item when is_binary(key) ->
+          fn key, item ->
+            if is_binary(key) do
               unquote(
                 map_decoded_value_ast(
                   quote(do: item),
@@ -665,9 +665,9 @@ defmodule JSONCodec do
                   opts
                 )
               )
-
-            key, _item ->
+            else
               JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), key)
+            end
           end,
           entries
         )
