@@ -173,6 +173,7 @@ defmodule JSONCodec do
   def to_map(%_{} = struct), do: struct |> Map.from_struct() |> to_map()
   def to_map(%{} = map), do: Map.new(map, fn {key, value} -> {encode_key(key), to_map(value)} end)
   def to_map(values) when is_list(values), do: Enum.map(values, &to_map/1)
+  def to_map(value) when is_boolean(value), do: value
   def to_map(value) when is_atom(value) and not is_nil(value), do: Atom.to_string(value)
   def to_map(value), do: value
 

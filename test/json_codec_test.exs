@@ -47,6 +47,14 @@ defmodule JSONCodecTest do
     codec(:variable_names, atom: :unsafe)
   end
 
+  defmodule FeatureFlag do
+    use JSONCodec
+
+    defstruct [:name, enabled: false, state: :active]
+
+    @type t :: %__MODULE__{name: String.t(), enabled: boolean(), state: atom()}
+  end
+
   defmodule PackageManifest do
     use JSONCodec, case: :camel
 
@@ -213,6 +221,20 @@ defmodule JSONCodecTest do
     assert_raise KeyError, fn ->
       DirectIconSet.from_map!(%{"prefix" => "demo", "icons" => %{"home" => %{}}})
     end
+  end
+
+  test "encodes booleans as booleans and atoms as strings" do
+    assert FeatureFlag.to_map(%FeatureFlag{name: "demo", enabled: true, state: :active}) == %{
+             "name" => "demo",
+             "enabled" => true,
+             "state" => "active"
+           }
+
+    assert JSONCodec.to_map(%{ok: true, error: false, state: :done}) == %{
+             "ok" => true,
+             "error" => false,
+             "state" => "done"
+           }
   end
 
   test "exports JSON Schema-compatible maps" do
