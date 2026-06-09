@@ -648,46 +648,52 @@ defmodule JSONCodec do
   end
 
   defp map_entries_decode_ast(module, opts, path, escaped_type) do
-    if Keyword.has_key?(opts, :decode_values) do
-      quote do
-        :maps.map(
-          fn key, item ->
-            if is_binary(key) do
-              unquote(
-                map_decoded_value_ast(
-                  quote(do: item),
-                  quote(do: key),
-                  quote(do: values_source),
-                  module,
-                  opts
-                )
-              )
-            else
-              JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), key)
-            end
-          end,
-          entries
-        )
-      end
-    else
-      quote do
-        Map.new(entries, fn
-          {key, item} when is_binary(key) ->
-            {key,
-             unquote(
-               map_decoded_value_ast(
-                 quote(do: item),
-                 quote(do: key),
-                 quote(do: values_source),
-                 module,
-                 opts
-               )
-             )}
+    if Keyword.has_key?(opts, :decode_values),
+      do: maps_map_entries_decode_ast(module, opts, path, escaped_type),
+      else: new_map_entries_decode_ast(module, opts, path, escaped_type)
+  end
 
-          {key, _item} ->
+  defp maps_map_entries_decode_ast(module, opts, path, escaped_type) do
+    quote do
+      :maps.map(
+        fn key, item ->
+          if is_binary(key) do
+            unquote(
+              map_decoded_value_ast(
+                quote(do: item),
+                quote(do: key),
+                quote(do: values_source),
+                module,
+                opts
+              )
+            )
+          else
             JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), key)
-        end)
-      end
+          end
+        end,
+        entries
+      )
+    end
+  end
+
+  defp new_map_entries_decode_ast(module, opts, path, escaped_type) do
+    quote do
+      Map.new(entries, fn
+        {key, item} when is_binary(key) ->
+          {key,
+           unquote(
+             map_decoded_value_ast(
+               quote(do: item),
+               quote(do: key),
+               quote(do: values_source),
+               module,
+               opts
+             )
+           )}
+
+        {key, _item} ->
+          JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), key)
+      end)
     end
   end
 
