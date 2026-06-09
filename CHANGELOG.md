@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.3 - 2026-06-09
+
+- Add `JSONCodec.dump/1` and generated `Module.dump/1` helpers that dump codec-owned structs using configured JSON field names (`case: :camel` and `codec(:field, as: ...)`).
+- Keep `to_map/1` unchanged for compatibility.
+
 ## 0.1.2 - 2026-06-09
 
 - Preserve boolean values as JSON booleans when encoding structs or maps with `to_map/1`.
