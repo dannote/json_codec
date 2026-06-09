@@ -134,6 +134,11 @@ defmodule JSONCodec do
         JSONCodec.to_map(struct)
       end
 
+      @doc "Dumps this struct into JSON-shaped data, respecting JSON field names."
+      def dump(%__MODULE__{} = struct) do
+        JSONCodec.dump(struct)
+      end
+
       @doc "Returns a JSON Schema-compatible schema map."
       def schema do
         JSONCodec.Schema.object(__MODULE__)
@@ -176,6 +181,24 @@ defmodule JSONCodec do
   def to_map(value) when is_boolean(value), do: value
   def to_map(value) when is_atom(value) and not is_nil(value), do: Atom.to_string(value)
   def to_map(value), do: value
+
+  @doc "Dumps a value into JSON-shaped Elixir data, respecting JSONCodec field names."
+  def dump(value)
+
+  def dump(%module{} = struct) do
+    if function_exported?(module, :__json_codec_fields__, 0) do
+      dump_json_codec(struct, module.__json_codec_fields__())
+    else
+      struct |> Map.from_struct() |> dump()
+    end
+  end
+
+  def dump(%{} = map), do: Map.new(map, fn {key, value} -> {encode_key(key), dump(value)} end)
+  def dump(values) when is_list(values), do: Enum.map(values, &dump/1)
+  def dump(value) when is_boolean(value), do: value
+  def dump(nil), do: nil
+  def dump(value) when is_atom(value), do: Atom.to_string(value)
+  def dump(value), do: value
 
   @doc "Returns a JSON Schema-compatible schema map for a JSONCodec module."
   def schema(module), do: JSONCodec.Schema.object(module)
@@ -802,6 +825,10 @@ defmodule JSONCodec do
         %{value | unquote(name) => unquote(fun_ast).(value)}
       end
     end)
+  end
+
+  defp dump_json_codec(struct, fields) do
+    Map.new(fields, fn %{name: name, json: json} -> {json, dump(Map.get(struct, name))} end)
   end
 
   defp encode_key(key) when is_atom(key), do: Atom.to_string(key)

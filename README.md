@@ -114,6 +114,17 @@ end
 
 `:camel` maps `:dev_dependencies` to `"devDependencies"` automatically.
 
+Use `dump/1` when converting codec-owned structs back to JSON-shaped Elixir data with the configured JSON field names:
+
+```elixir
+manifest = %PackageManifest{name: "demo", dev_dependencies: %{"jason" => "~> 1.4"}}
+
+JSONCodec.dump(manifest)
+#=> %{"name" => "demo", "version" => nil, "devDependencies" => %{"jason" => "~> 1.4"}}
+```
+
+`to_map/1` remains a compatibility helper that stringifies atom keys recursively.
+
 `fast_path: :json` generates an optimized first `from_map!/1` clause for normal `Jason`-decoded JSON maps with string keys. If that fast string-key clause does not match, `JSONCodec` falls back to the full generic decoder, including atom-key lookup and detailed missing-field handling.
 
 Use `codec/2` for exceptions and special behavior:

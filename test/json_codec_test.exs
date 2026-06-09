@@ -237,6 +237,26 @@ defmodule JSONCodecTest do
            }
   end
 
+  test "dumps JSONCodec structs using JSON field names" do
+    manifest = %PackageManifest{name: "demo", dev_dependencies: %{"jason" => "~> 1.4"}}
+
+    assert PackageManifest.dump(manifest) == %{
+             "name" => "demo",
+             "version" => nil,
+             "devDependencies" => %{"jason" => "~> 1.4"}
+           }
+
+    assert JSONCodec.dump(%{manifest: manifest, ok: true, state: :done}) == %{
+             "manifest" => %{
+               "name" => "demo",
+               "version" => nil,
+               "devDependencies" => %{"jason" => "~> 1.4"}
+             },
+             "ok" => true,
+             "state" => "done"
+           }
+  end
+
   test "exports JSON Schema-compatible maps" do
     assert %{
              "type" => "object",
