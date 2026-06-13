@@ -90,6 +90,7 @@ defmodule JSONCodec do
     |> Enum.reverse()
   end
 
+  # credo:disable-for-next-line Credo.Check.Refactor.CyclomaticComplexity
   defp generated_codec_ast(%{
          fields: fields,
          build_pairs: build_pairs,

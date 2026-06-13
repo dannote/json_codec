@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4 - 2026-06-13
+
+- Fix `defstruct` literal defaults so values like `%{}` remain runtime values instead of escaped AST.
+
 ## 0.1.3 - 2026-06-09
 
 - Add `JSONCodec.dump/1` and generated `Module.dump/1` helpers that dump codec-owned structs using configured JSON field names (`case: :camel` and `codec(:field, as: ...)`).
