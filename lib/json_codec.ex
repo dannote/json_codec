@@ -30,11 +30,9 @@ defmodule JSONCodec do
   end
 
   defmacro defstruct(fields) do
-    escaped_fields = Macro.escape(fields)
-
-    quote bind_quoted: [fields: escaped_fields] do
-      @json_codec_struct_fields fields
-      Kernel.defstruct(fields)
+    quote do
+      @json_codec_struct_fields unquote(fields)
+      Kernel.defstruct(unquote(fields))
     end
   end
 

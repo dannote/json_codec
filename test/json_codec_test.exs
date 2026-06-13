@@ -148,6 +148,7 @@ defmodule JSONCodecTest do
   test "decodes JSON and aliases fields with camel case" do
     json = ~s({"name":"demo","devDependencies":{"jason":"~> 1.4"}})
 
+    assert %PackageManifest{dev_dependencies: %{}} = struct(PackageManifest)
     assert {:ok, manifest} = PackageManifest.decode(json)
     assert manifest.name == "demo"
     assert manifest.version == nil
