@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.5 - 2026-06-15
+
+- Loosen the `elixir:` requirement from `~> 1.20` to `~> 1.16` so downstream projects on Elixir 1.16–1.19 can resolve `json_codec`. The codec macros and generated code do not use 1.20+ features.
+
 ## 0.1.4 - 2026-06-13
 
 - Fix `defstruct` literal defaults so values like `%{}` remain runtime values instead of escaped AST.
