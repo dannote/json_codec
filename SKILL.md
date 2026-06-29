@@ -258,7 +258,7 @@ Map-field callbacks:
 - Do not support mixed atom/string keys at external JSON boundaries.
 - Do not write redundant `as:` mappings for normal camelCase/snake_case conversion.
 - Do not use `transform:` for wire-type conversion; use `cast:`.
-- Do not use `String.to_atom/1` for JSON values unless the field explicitly declares `codec(..., atom: :unsafe)` and the vocabulary is trusted.
+- Do not use `String.to_atom/1` for JSON values; use `codec(..., atom: {:enum, values})` for finite vocabularies or `atom: :existing` for pre-existing atoms.
 - Do not hide JSONCodec errors behind generic `:invalid` or string errors at the boundary.
 
 ## Quick checklist

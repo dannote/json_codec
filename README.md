@@ -40,11 +40,11 @@ defmodule DataRef do
   @type t :: %__MODULE__{
           type: :argument | :return | :variable,
           function: FunctionID.t(),
-          name: atom() | nil,
+          name: :input | :acc | :result | nil,
           index: non_neg_integer() | nil
         }
 
-  codec :name, atom: :unsafe
+  codec :name, atom: {:enum, [:input, :acc, :result]}
 end
 ```
 
@@ -79,7 +79,7 @@ def from_map!(%{"from" => from, "to" => to} = map) do
     from: DataRef.from_map!(from),
     to: DataRef.from_map!(to),
     through: Enum.map(Map.get(map, "through", []), &DataRef.from_map!/1),
-    variable_names: Enum.map(Map.get(map, "variable_names", []), &String.to_atom/1)
+    variable_names: Map.get(map, "variable_names", [])
   }
 end
 ```
@@ -135,7 +135,7 @@ Use `codec/2` for exceptions and special behavior:
 
 ```elixir
 codec :not_found, as: "not_found"
-codec :variable_names, atom: :unsafe
+codec :variable_names, atom: {:enum, [:acc, :result]}
 codec :created_at, as: "createdAtMs", cast: :from_milliseconds
 codec :name, transform: :trim_name
 ```
@@ -241,10 +241,9 @@ Atom policy is explicit:
 
 ```elixir
 codec :status, atom: :existing
-codec :variable_name, atom: :unsafe
+codec :variable_name, atom: {:enum, [:acc, :result]}
 ```
 
-`:unsafe` uses `String.to_atom/1`; only use it for bounded/trusted internal data.
 
 ## Supported type shapes
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.0 - 2026-06-29
+
+- Remove unbounded `atom: :unsafe` decoding; use `atom: {:enum, values}` or `atom: :existing`.
+- Avoid map decoding for fields with `cast:` that already produced the declared struct.
+- Recognize nested JSONCodec modules during code generation with `Code.ensure_compiled/1`.
+
 ## 0.1.6 - 2026-06-29
 
 - Add `strict: true` to reject atom-key maps at JSON boundaries.

@@ -561,16 +561,6 @@ defmodule JSONCodec do
     end
   end
 
-  defp decode_value_ast(value, :atom, path, [atom: :unsafe], _source) do
-    quote do
-      case unquote(value) do
-        atom when is_atom(atom) -> atom
-        string when is_binary(string) -> String.to_atom(string)
-        other -> JSONCodec.Decoder.type_error!(unquote(path), :atom, other)
-      end
-    end
-  end
-
   defp decode_value_ast(value, {:enum, values} = type, path, _opts, _source) do
     fallback = Macro.var(:other, nil)
 
@@ -607,29 +597,6 @@ defmodule JSONCodec do
       else: map_module_decode_ast(value, module, type, path, opts, source)
   end
 
-  defp decode_value_ast(value, {:list, :atom} = type, path, [atom: :unsafe], _source) do
-    escaped_type = Macro.escape(type)
-
-    quote do
-      case unquote(value) do
-        values when is_list(values) ->
-          Enum.map(values, fn
-            atom when is_atom(atom) ->
-              atom
-
-            string when is_binary(string) ->
-              String.to_atom(string)
-
-            other ->
-              JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), other)
-          end)
-
-        other ->
-          JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), other)
-      end
-    end
-  end
-
   defp decode_value_ast(value, {:list, module} = type, path, _opts, _source)
        when is_atom(module) do
     if primitive_type?(module),
@@ -650,6 +617,9 @@ defmodule JSONCodec do
     cond do
       primitive_type?(module) ->
         generic_decode_ast(value, module, path, opts, source)
+
+      Keyword.has_key?(opts, :cast) ->
+        struct_module_decode_ast(value, module, path)
 
       json_codec_module?(module) ->
         json_codec_module_decode_ast(value, module, path)
@@ -855,7 +825,8 @@ defmodule JSONCodec do
   end
 
   defp json_codec_module?(module) do
-    Code.ensure_loaded?(module) and function_exported?(module, :from_map!, 1)
+    match?({:module, ^module}, Code.ensure_compiled(module)) and
+      function_exported?(module, :from_map!, 1)
   end
 
   defp primitive_type?(type) do

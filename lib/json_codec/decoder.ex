@@ -82,9 +82,9 @@ defmodule JSONCodec.Decoder do
 
   def decode(value, :atom, path, opts, _source) when is_binary(value) do
     case Keyword.get(opts, :atom, :existing) do
-      :unsafe -> String.to_atom(value)
       :existing -> String.to_existing_atom(value)
       {:enum, values} -> decode_atom_enum(value, values, path)
+      other -> type_error!(path, {:atom_policy, other}, value)
     end
   rescue
     ArgumentError -> type_error!(path, :existing_atom, value)

@@ -28,7 +28,7 @@ defmodule JSONCodecTest do
             index: non_neg_integer() | nil
           }
 
-    codec(:name, atom: :unsafe)
+    codec(:name, atom: {:enum, [:input, :acc, :result]})
   end
 
   defmodule DataFlow do
@@ -44,7 +44,7 @@ defmodule JSONCodecTest do
             branch: :then | :else | :case | nil
           }
 
-    codec(:variable_names, atom: :unsafe)
+    codec(:variable_names, atom: {:enum, [:acc, :result]})
   end
 
   defmodule FeatureFlag do
@@ -118,6 +118,39 @@ defmodule JSONCodecTest do
         width: Map.get(data, "width", Map.get(defaults, "width", 16))
       }
     end
+  end
+
+  defmodule StrictChild do
+    use JSONCodec, strict: true, fast_path: :json
+
+    defstruct [:name]
+
+    @type t :: %__MODULE__{name: String.t()}
+  end
+
+  defmodule StrictParent do
+    use JSONCodec, strict: true, fast_path: :json
+
+    defstruct [:child]
+
+    @type t :: %__MODULE__{child: StrictChild.t()}
+  end
+
+  defmodule CastOnlyStruct do
+    defstruct [:value]
+    @type t :: %__MODULE__{value: String.t()}
+  end
+
+  defmodule CastOnlyPayload do
+    use JSONCodec, strict: true, fast_path: :json
+
+    defstruct [:wrapped]
+
+    @type t :: %__MODULE__{wrapped: CastOnlyStruct.t()}
+
+    codec(:wrapped, cast: :wrap)
+
+    def wrap(value), do: %CastOnlyStruct{value: value}
   end
 
   defmodule CastEvent do
@@ -209,6 +242,16 @@ defmodule JSONCodecTest do
 
     assert {:error, %JSONCodec.Error{reason: :non_string_key}} =
              StrictPackageManifest.from_map(%{name: "demo"})
+  end
+
+  test "strict nested JSONCodec modules defined in the same source decode from maps" do
+    assert %StrictParent{child: %StrictChild{name: "demo"}} =
+             StrictParent.from_map!(%{"child" => %{"name" => "demo"}})
+  end
+
+  test "cast can produce declared non-JSONCodec structs without requiring from_map" do
+    assert %CastOnlyPayload{wrapped: %CastOnlyStruct{value: "demo"}} =
+             CastOnlyPayload.from_map!(%{"wrapped" => "demo"})
   end
 
   test "cast runs before type decode and transform runs after type decode" do
