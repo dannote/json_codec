@@ -1,6 +1,10 @@
 # JSONCodec
 
+[![HexDocs](https://img.shields.io/badge/hexdocs-json__codec-purple)](https://hexdocs.pm/json_codec/)
+
 Compile-time generated codecs for JSON-shaped Elixir structs.
+
+Agent instructions for consumers are available at <https://github.com/dannote/json_codec/blob/main/SKILL.md>. If your coding agent supports skills, load that file before adding JSON decoding code that depends on JSONCodec.
 
 `JSONCodec` is **not** another JSON parser. It uses [`Jason`](https://hex.pm/packages/jason) for parsing and focuses on the annoying part that tends to be rewritten in every Elixir project: converting decoded string-keyed JSON maps into nested structs with aliases, defaults, computed fields, explicit atom policy, and schema export.
 
@@ -132,14 +136,48 @@ Use `codec/2` for exceptions and special behavior:
 ```elixir
 codec :not_found, as: "not_found"
 codec :variable_names, atom: :unsafe
-codec :rotate, transform: :normalize_rotate
+codec :created_at, as: "createdAtMs", cast: :from_milliseconds
+codec :name, transform: :trim_name
+```
+
+Field processing order is:
+
+```text
+JSON key mapping -> raw value -> cast -> type decode -> transform -> struct field
+```
+
+Use `cast:` to convert a wire representation into the declared Elixir type before type decoding:
+
+```elixir
+defmodule JobPayload do
+  use JSONCodec, case: :camel, fast_path: :json
+
+  defstruct [:id, :created_at]
+
+  @type t :: %__MODULE__{id: String.t(), created_at: DateTime.t()}
+
+  codec :created_at, as: "createdAtMs", cast: :from_milliseconds
+
+  def from_milliseconds(milliseconds), do: DateTime.from_unix!(milliseconds, :millisecond)
+end
+```
+
+Use `transform:` to normalize a value after it has decoded as the declared type:
+
+```elixir
+codec :name, transform: :trim_name
+
+def trim_name(name), do: String.trim(name)
 ```
 
 Local callback atoms are expanded to functions in the same module:
 
 ```elixir
-codec :rotate, transform: :normalize_rotate
-# calls normalize_rotate(value)
+codec :created_at, cast: :from_milliseconds
+# calls from_milliseconds(value)
+
+codec :name, transform: :trim_name
+# calls trim_name(value)
 
 codec :icons, values: :icon_value
 # calls icon_value(key, value, source_map)
@@ -148,8 +186,20 @@ codec :icons, values: :icon_value
 Remote captures are also supported:
 
 ```elixir
-codec :rotate, transform: &MyTransforms.normalize_rotate/1
+codec :created_at, cast: &MyTransforms.from_milliseconds/1
+codec :name, transform: &String.trim/1
 codec :icons, values: &MyTransforms.icon_value/3
+```
+
+Use `strict: true` when `from_map/1` should accept only JSON/string-keyed maps and reject atom-key fallback:
+
+```elixir
+defmodule StrictPayload do
+  use JSONCodec, case: :camel, strict: true, fast_path: :json
+
+  defstruct [:job_id]
+  @type t :: %__MODULE__{job_id: String.t()}
+end
 ```
 
 ### Advanced map value callbacks

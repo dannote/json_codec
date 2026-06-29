@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.6 - 2026-06-29
+
+- Add `strict: true` to reject atom-key maps at JSON boundaries.
+- Add `cast:` field callbacks that run before type decoding.
+- Accept existing structs for declared struct fields during decoding.
+- Include `SKILL.md` with consumer guidance in the package.
+
 ## 0.1.5 - 2026-06-15
 
 - Loosen the `elixir:` requirement from `~> 1.20` to `~> 1.16` so downstream projects on Elixir 1.16–1.19 can resolve `json_codec`. The codec macros and generated code do not use 1.20+ features.

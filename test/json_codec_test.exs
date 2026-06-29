@@ -120,6 +120,36 @@ defmodule JSONCodecTest do
     end
   end
 
+  defmodule CastEvent do
+    use JSONCodec, case: :camel, fast_path: :json
+
+    defstruct [:name, :created_at, :normalized_name]
+
+    @type t :: %__MODULE__{
+            name: String.t(),
+            created_at: DateTime.t(),
+            normalized_name: String.t()
+          }
+
+    codec(:created_at, as: "createdAtMs", cast: :datetime_ms)
+    codec(:normalized_name, cast: &String.trim/1, transform: :upcase)
+
+    def datetime_ms(milliseconds), do: DateTime.from_unix!(milliseconds, :millisecond)
+    def upcase(value), do: String.upcase(value)
+  end
+
+  defmodule StrictPackageManifest do
+    use JSONCodec, case: :camel, strict: true, fast_path: :json
+
+    defstruct [:name, :version, dev_dependencies: %{}]
+
+    @type t :: %__MODULE__{
+            name: String.t(),
+            version: String.t() | nil,
+            dev_dependencies: %{String.t() => String.t()}
+          }
+  end
+
   test "decodes nested structs with computed fields" do
     map = %{
       "from" => %{
@@ -167,6 +197,33 @@ defmodule JSONCodecTest do
                name: "demo",
                dev_dependencies: %{"jason" => "~> 1.4"}
              })
+  end
+
+  test "strict mode rejects atom-key maps while decoding JSON strings" do
+    assert {:ok, %StrictPackageManifest{name: "demo"}} =
+             StrictPackageManifest.decode(~s({"name":"demo"}))
+
+    assert_raise JSONCodec.Error, ~r/non_string_key/, fn ->
+      StrictPackageManifest.from_map!(%{name: "demo"})
+    end
+
+    assert {:error, %JSONCodec.Error{reason: :non_string_key}} =
+             StrictPackageManifest.from_map(%{name: "demo"})
+  end
+
+  test "cast runs before type decode and transform runs after type decode" do
+    created_at_ms = 1_782_703_591_000
+
+    assert %CastEvent{} =
+             event =
+             CastEvent.from_map!(%{
+               "name" => "demo",
+               "createdAtMs" => created_at_ms,
+               "normalizedName" => "  hello  "
+             })
+
+    assert event.created_at == DateTime.from_unix!(created_at_ms, :millisecond)
+    assert event.normalized_name == "HELLO"
   end
 
   test "fast JSON path decodes map values through local callback" do

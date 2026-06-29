@@ -4,7 +4,7 @@ defmodule JSONCodec.MixProject do
   def project do
     [
       app: :json_codec,
-      version: "0.1.5",
+      version: "0.1.6",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       description: "Compile-time generated codecs for JSON-shaped Elixir structs",
@@ -48,7 +48,7 @@ defmodule JSONCodec.MixProject do
       licenses: ["MIT"],
       maintainers: ["Danila Poyarkov"],
       links: %{"GitHub" => "https://github.com/dannote/json_codec"},
-      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE)
+      files: ~w(lib mix.exs README.md CHANGELOG.md LICENSE SKILL.md)
     ]
   end
 

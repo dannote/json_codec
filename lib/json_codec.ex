@@ -68,12 +68,15 @@ defmodule JSONCodec do
     type_fields = parse_type_fields(module, env)
     fields = build_fields(module, struct_fields, type_fields, field_options, codec_options, env)
 
+    strict? = Keyword.get(codec_options, :strict, false)
+
     %{
       fields: fields,
-      build_pairs: Enum.map(fields, &field_pair_ast/1),
+      build_pairs: Enum.map(fields, &field_pair_ast(&1, generic_raw_strategy(strict?))),
       fast_build_pairs: fast_path_field_pairs(fields, codec_options),
       fast_pattern: fast_path_pattern(fields, codec_options),
-      computed_result: computed_result_ast(computed)
+      computed_result: computed_result_ast(computed),
+      strict?: strict?
     }
   end
 
@@ -96,10 +99,14 @@ defmodule JSONCodec do
          build_pairs: build_pairs,
          fast_build_pairs: fast_build_pairs,
          fast_pattern: fast_pattern,
-         computed_result: computed_result
+         computed_result: computed_result,
+         strict?: strict?
        }) do
     escaped_fields = Macro.escape(fields)
-    fast_from_map = fast_from_map_ast(fast_pattern, fast_build_pairs, computed_result)
+    strict_check = strict_check_ast(strict?)
+
+    fast_from_map =
+      fast_from_map_ast(fast_pattern, fast_build_pairs, computed_result, strict_check)
 
     quote do
       @doc false
@@ -124,6 +131,7 @@ defmodule JSONCodec do
       unquote(fast_from_map)
 
       def from_map!(map) when is_map(map) do
+        unquote(strict_check)
         struct = %__MODULE__{unquote_splicing(build_pairs)}
         unquote(computed_result)
       end
@@ -238,6 +246,7 @@ defmodule JSONCodec do
 
   defp normalize_callbacks(opts, module, field, env) do
     opts
+    |> normalize_callback(:cast, 1, module, field, env)
     |> normalize_callback(:transform, 1, module, field, env)
     |> normalize_callback(:values, 3, module, field, env)
     |> normalize_callback(:decode_values, 3, module, field, env)
@@ -364,6 +373,9 @@ defmodule JSONCodec do
     first <> Enum.map_join(rest, &String.capitalize/1)
   end
 
+  defp generic_raw_strategy(true), do: :json
+  defp generic_raw_strategy(false), do: :generic
+
   defp fast_path_field_pairs(fields, opts) do
     required = required_fields(fields)
 
@@ -393,18 +405,21 @@ defmodule JSONCodec do
 
   defp required_fields(fields), do: Enum.filter(fields, & &1.required)
 
-  defp fast_from_map_ast(nil, _build_pairs, _computed_result), do: nil
+  defp fast_from_map_ast(nil, _build_pairs, _computed_result, _strict_check), do: nil
 
-  defp fast_from_map_ast(pattern, build_pairs, computed_result) do
+  defp fast_from_map_ast(pattern, build_pairs, computed_result, strict_check) do
     quote do
       def from_map!(unquote(pattern) = map) do
+        unquote(strict_check)
         struct = %__MODULE__{unquote_splicing(build_pairs)}
         unquote(computed_result)
       end
     end
   end
 
-  defp field_pair_ast(field), do: field_pair_ast(field, :generic)
+  defp field_pair_ast(field, :json) do
+    {field.name, field_value_ast(field, {:json, field.json})}
+  end
 
   defp field_pair_ast(field, raw_strategy) do
     {field.name, field_value_ast(field, raw_strategy)}
@@ -418,7 +433,8 @@ defmodule JSONCodec do
     raw = raw_value_ast(raw_strategy, decoder, field.name, field.json)
     present = present_field_ast(raw, raw_strategy, field, decoder, path, type)
     defaulted = defaulted_field_ast(present, field, decoder)
-    decoded = decoded_field_ast(defaulted, field, path)
+    casted = cast_ast(defaulted, Keyword.get(field.opts, :cast), field.required)
+    decoded = decoded_field_ast(casted, field, path)
 
     transform_ast(decoded, Keyword.get(field.opts, :transform))
   end
@@ -465,6 +481,20 @@ defmodule JSONCodec do
           unquote(
             decode_value_ast(quote(do: value), decode_type, path, field.opts, quote(do: map))
           )
+      end
+    end
+  end
+
+  defp strict_check_ast(false), do: nil
+
+  defp strict_check_ast(true) do
+    quote do
+      unless Enum.all?(Map.keys(map), &is_binary/1) do
+        raise JSONCodec.Error,
+          path: [],
+          expected: :json_object,
+          got: map,
+          reason: :non_string_key
       end
     end
   end
@@ -617,20 +647,44 @@ defmodule JSONCodec do
   end
 
   defp decode_value_ast(value, module, path, opts, source) when is_atom(module) do
-    if primitive_type?(module) do
-      generic_decode_ast(value, module, path, opts, source)
-    else
-      quote do
-        case unquote(value) do
-          map when is_map(map) -> unquote(module).from_map!(map)
-          other -> JSONCodec.Decoder.type_error!(unquote(path), unquote(module), other)
-        end
-      end
+    cond do
+      primitive_type?(module) ->
+        generic_decode_ast(value, module, path, opts, source)
+
+      json_codec_module?(module) ->
+        json_codec_module_decode_ast(value, module, path)
+
+      true ->
+        struct_module_decode_ast(value, module, path)
     end
   end
 
   defp decode_value_ast(value, type, path, opts, source) do
     generic_decode_ast(value, type, path, opts, source)
+  end
+
+  defp json_codec_module_decode_ast(value, module, path) do
+    quote do
+      case unquote(value) do
+        %unquote(module){} = struct ->
+          struct
+
+        map when is_map(map) ->
+          unquote(module).from_map!(map)
+
+        other ->
+          JSONCodec.Decoder.type_error!(unquote(path), unquote(module), other)
+      end
+    end
+  end
+
+  defp struct_module_decode_ast(value, module, path) do
+    quote do
+      case unquote(value) do
+        %unquote(module){} = struct -> struct
+        other -> JSONCodec.Decoder.type_error!(unquote(path), unquote(module), other)
+      end
+    end
   end
 
   defp list_module_decode_ast(value, module, type, path) do
@@ -786,6 +840,24 @@ defmodule JSONCodec do
     end
   end
 
+  defp cast_ast(value, nil, _required?), do: value
+  defp cast_ast(value, cast, true), do: apply_callback_ast(value, cast)
+
+  defp cast_ast(value, cast, false) do
+    casted = apply_callback_ast(value, cast)
+
+    quote do
+      case unquote(value) do
+        :__json_codec_missing__ -> :__json_codec_missing__
+        _ -> unquote(casted)
+      end
+    end
+  end
+
+  defp json_codec_module?(module) do
+    Code.ensure_loaded?(module) and function_exported?(module, :from_map!, 1)
+  end
+
   defp primitive_type?(type) do
     type in [
       :any,
@@ -802,18 +874,19 @@ defmodule JSONCodec do
   end
 
   defp transform_ast(decoded, nil), do: decoded
+  defp transform_ast(decoded, transform), do: apply_callback_ast(decoded, transform)
 
-  defp transform_ast(decoded, {:local, module, fun, _arity}) do
+  defp apply_callback_ast(value, {:local, module, fun, _arity}) do
     quote do
-      unquote(module).unquote(fun)(unquote(decoded))
+      unquote(module).unquote(fun)(unquote(value))
     end
   end
 
-  defp transform_ast(decoded, transform) do
-    transform = Macro.escape(transform)
+  defp apply_callback_ast(value, callback) do
+    callback = Macro.escape(callback)
 
     quote do
-      unquote(transform).(unquote(decoded))
+      unquote(callback).(unquote(value))
     end
   end
 
