@@ -619,7 +619,7 @@ defmodule JSONCodec do
         generic_decode_ast(value, module, path, opts, source)
 
       Keyword.has_key?(opts, :cast) ->
-        struct_module_decode_ast(value, module, path)
+        value
 
       json_codec_module?(module) ->
         json_codec_module_decode_ast(value, module, path)

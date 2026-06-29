@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 - 2026-06-29
+
+- Avoid redundant struct decoding for fields with `cast:` that already returns the declared struct type.
+
 ## 0.2.0 - 2026-06-29
 
 - Remove unbounded `atom: :unsafe` decoding; use `atom: {:enum, values}` or `atom: :existing`.
