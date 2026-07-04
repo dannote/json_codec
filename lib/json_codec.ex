@@ -811,10 +811,10 @@ defmodule JSONCodec do
   end
 
   defp cast_ast(value, nil, _required?), do: value
-  defp cast_ast(value, cast, true), do: apply_callback_ast(value, cast)
+  defp cast_ast(value, cast, true), do: apply_cast_callback_ast(value, cast)
 
   defp cast_ast(value, cast, false) do
-    casted = apply_callback_ast(value, cast)
+    casted = apply_cast_callback_ast(value, cast)
 
     quote do
       case unquote(value) do
@@ -846,6 +846,20 @@ defmodule JSONCodec do
 
   defp transform_ast(decoded, nil), do: decoded
   defp transform_ast(decoded, transform), do: apply_callback_ast(decoded, transform)
+
+  defp apply_cast_callback_ast(value, {:local, module, fun, _arity}) do
+    quote do
+      apply(unquote(module), unquote(fun), [unquote(value)])
+    end
+  end
+
+  defp apply_cast_callback_ast(value, callback) do
+    callback = Macro.escape(callback)
+
+    quote do
+      apply(unquote(callback), [unquote(value)])
+    end
+  end
 
   defp apply_callback_ast(value, {:local, module, fun, _arity}) do
     quote do

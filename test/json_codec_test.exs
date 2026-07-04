@@ -171,6 +171,20 @@ defmodule JSONCodecTest do
     def upcase(value), do: String.upcase(value)
   end
 
+  defmodule GuardedDateTimeCast do
+    use JSONCodec, strict: true, fast_path: :json
+
+    defstruct [:expires_at]
+
+    @type t :: %__MODULE__{expires_at: DateTime.t()}
+
+    codec(:expires_at, as: "expires", cast: :expires_datetime)
+
+    def expires_datetime(expires) when is_integer(expires) do
+      expires |> DateTime.from_unix!(:millisecond) |> DateTime.truncate(:second)
+    end
+  end
+
   defmodule StrictPackageManifest do
     use JSONCodec, case: :camel, strict: true, fast_path: :json
 
@@ -267,6 +281,15 @@ defmodule JSONCodecTest do
 
     assert event.created_at == DateTime.from_unix!(created_at_ms, :millisecond)
     assert event.normalized_name == "HELLO"
+  end
+
+  test "guarded cast callbacks do not create unreachable generated type checks" do
+    expires = DateTime.utc_now() |> DateTime.truncate(:second) |> DateTime.to_unix(:millisecond)
+
+    assert %GuardedDateTimeCast{expires_at: %DateTime{} = expires_at} =
+             GuardedDateTimeCast.from_map!(%{"expires" => expires})
+
+    assert DateTime.to_unix(expires_at, :millisecond) == expires
   end
 
   test "fast JSON path decodes map values through local callback" do
