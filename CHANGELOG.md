@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 - 2026-07-04
+
+- Avoid generated type warnings for guarded `cast:` callbacks.
+
 ## 0.2.1 - 2026-06-29
 
 - Avoid redundant struct decoding for fields with `cast:` that already returns the declared struct type.

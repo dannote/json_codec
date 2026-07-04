@@ -4,7 +4,7 @@ defmodule JSONCodec.MixProject do
   def project do
     [
       app: :json_codec,
-      version: "0.2.1",
+      version: "0.2.2",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       description: "Compile-time generated codecs for JSON-shaped Elixir structs",
