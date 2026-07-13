@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.3 - 2026-07-13
 
 - Resolve declared codec modules at decode time instead of relying on compile-time module load order.
 - Apply codec and plain-struct decoding consistently to direct fields, lists, and map values.
