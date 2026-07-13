@@ -115,14 +115,31 @@ defmodule JSONCodec.Decoder do
     type_error!(path, {:map, key_type, value_type}, value)
   end
 
-  def decode(value, module, _path, _opts, _source) when is_map(value) and is_atom(module) do
-    module.from_map!(value)
+  def decode(value, module, path, _opts, _source) when is_atom(module) do
+    decode_module(value, module, path)
   end
 
   def decode(value, expected, path, _opts, _source), do: type_error!(path, expected, value)
 
+  def decode_module(value, module, path) when is_atom(module) do
+    cond do
+      is_struct(value, module) ->
+        value
+
+      is_map(value) and codec_module?(module) ->
+        module.from_map!(value)
+
+      true ->
+        type_error!(path, module, value)
+    end
+  end
+
   def type_error!(path, expected, value) do
     raise Error, path: path, expected: expected, got: value, reason: :invalid_type
+  end
+
+  defp codec_module?(module) do
+    Code.ensure_loaded?(module) and function_exported?(module, :__json_codec_fields__, 0)
   end
 
   defp append_path([], item), do: [item]

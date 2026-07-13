@@ -599,9 +599,7 @@ defmodule JSONCodec do
 
   defp decode_value_ast(value, {:list, module} = type, path, _opts, _source)
        when is_atom(module) do
-    if primitive_type?(module),
-      do: generic_decode_ast(value, type, path, [], quote(do: map)),
-      else: list_module_decode_ast(value, module, type, path)
+    generic_decode_ast(value, type, path, [], quote(do: map))
   end
 
   defp decode_value_ast(value, {:nullable, type}, path, opts, source) do
@@ -621,11 +619,8 @@ defmodule JSONCodec do
       Keyword.has_key?(opts, :cast) ->
         value
 
-      json_codec_module?(module) ->
-        json_codec_module_decode_ast(value, module, path)
-
       true ->
-        struct_module_decode_ast(value, module, path)
+        module_decode_ast(value, module, path)
     end
   end
 
@@ -633,47 +628,9 @@ defmodule JSONCodec do
     generic_decode_ast(value, type, path, opts, source)
   end
 
-  defp json_codec_module_decode_ast(value, module, path) do
+  defp module_decode_ast(value, module, path) do
     quote do
-      case unquote(value) do
-        %unquote(module){} = struct ->
-          struct
-
-        map when is_map(map) ->
-          unquote(module).from_map!(map)
-
-        other ->
-          JSONCodec.Decoder.type_error!(unquote(path), unquote(module), other)
-      end
-    end
-  end
-
-  defp struct_module_decode_ast(value, module, path) do
-    quote do
-      case unquote(value) do
-        %unquote(module){} = struct -> struct
-        other -> JSONCodec.Decoder.type_error!(unquote(path), unquote(module), other)
-      end
-    end
-  end
-
-  defp list_module_decode_ast(value, module, type, path) do
-    escaped_type = Macro.escape(type)
-
-    quote do
-      case unquote(value) do
-        values when is_list(values) ->
-          Enum.map(values, fn
-            map when is_map(map) ->
-              unquote(module).from_map!(map)
-
-            other ->
-              JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), other)
-          end)
-
-        other ->
-          JSONCodec.Decoder.type_error!(unquote(path), unquote(escaped_type), other)
-      end
+      JSONCodec.Decoder.decode_module(unquote(value), unquote(module), unquote(path))
     end
   end
 
@@ -710,7 +667,8 @@ defmodule JSONCodec do
                 quote(do: key),
                 quote(do: values_source),
                 module,
-                opts
+                opts,
+                path
               )
             )
           else
@@ -733,7 +691,8 @@ defmodule JSONCodec do
                quote(do: key),
                quote(do: values_source),
                module,
-               opts
+               opts,
+               path
              )
            )}
 
@@ -760,13 +719,17 @@ defmodule JSONCodec do
     end
   end
 
-  defp map_decoded_value_ast(item, key, source, module, opts) do
+  defp map_decoded_value_ast(item, key, source, module, opts, path) do
     case Keyword.get(opts, :decode_values) do
       nil ->
         item = map_value_ast(item, key, source, opts)
 
         quote do
-          unquote(module).from_map!(unquote(item))
+          JSONCodec.Decoder.decode_module(
+            unquote(item),
+            unquote(module),
+            unquote(path) ++ [unquote(key)]
+          )
         end
 
       {:local, callback_module, fun, 3} ->
@@ -822,11 +785,6 @@ defmodule JSONCodec do
         _ -> unquote(casted)
       end
     end
-  end
-
-  defp json_codec_module?(module) do
-    match?({:module, ^module}, Code.ensure_compiled(module)) and
-      function_exported?(module, :from_map!, 1)
   end
 
   defp primitive_type?(type) do

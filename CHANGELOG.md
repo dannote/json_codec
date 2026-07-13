@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- Resolve declared codec modules at decode time instead of relying on compile-time module load order.
+- Apply codec and plain-struct decoding consistently to direct fields, lists, and map values.
+
 ## 0.2.2 - 2026-07-04
 
 - Avoid generated type warnings for guarded `cast:` callbacks.

@@ -136,6 +136,35 @@ defmodule JSONCodecTest do
     @type t :: %__MODULE__{child: StrictChild.t()}
   end
 
+  defmodule PlainValue do
+    defstruct [:name]
+    @type t :: %__MODULE__{name: String.t()}
+  end
+
+  defmodule ModuleContainer do
+    use JSONCodec, fast_path: :json
+
+    defstruct [
+      :child,
+      :optional_child,
+      :plain,
+      children: [],
+      children_by_name: %{},
+      plain_children: [],
+      plain_by_name: %{}
+    ]
+
+    @type t :: %__MODULE__{
+            child: StrictChild.t(),
+            optional_child: StrictChild.t() | nil,
+            plain: PlainValue.t(),
+            children: [StrictChild.t()],
+            children_by_name: %{String.t() => StrictChild.t()},
+            plain_children: [PlainValue.t()],
+            plain_by_name: %{String.t() => PlainValue.t()}
+          }
+  end
+
   defmodule CastOnlyStruct do
     defstruct [:value]
     @type t :: %__MODULE__{value: String.t()}
@@ -261,6 +290,88 @@ defmodule JSONCodecTest do
   test "strict nested JSONCodec modules defined in the same source decode from maps" do
     assert %StrictParent{child: %StrictChild{name: "demo"}} =
              StrictParent.from_map!(%{"child" => %{"name" => "demo"}})
+  end
+
+  test "resolves a codec module compiled after its parent" do
+    suffix = System.unique_integer([:positive])
+    parent = Module.concat(JSONCodecTest, "RuntimeParent#{suffix}")
+    child = Module.concat(JSONCodecTest, "RuntimeChild#{suffix}")
+
+    Code.compile_string("""
+    defmodule #{inspect(parent)} do
+      use JSONCodec, fast_path: :json
+      defstruct [:child]
+      @type t :: %__MODULE__{child: #{inspect(child)}.t()}
+    end
+    """)
+
+    Code.compile_string("""
+    defmodule #{inspect(child)} do
+      use JSONCodec, fast_path: :json
+      defstruct [:name]
+      @type t :: %__MODULE__{name: String.t()}
+    end
+    """)
+
+    assert %{child: decoded_child} = parent.from_map!(%{"child" => %{"name" => "late"}})
+
+    assert decoded_child == struct(child, name: "late")
+  end
+
+  test "decodes codec modules and preserves plain structs across field shapes" do
+    existing_child = %StrictChild{name: "existing child"}
+    plain = %PlainValue{name: "plain"}
+
+    assert %ModuleContainer{
+             child: %StrictChild{name: "child"},
+             optional_child: nil,
+             plain: ^plain,
+             children: [%StrictChild{name: "list child"}, ^existing_child],
+             children_by_name: %{"map" => %StrictChild{name: "map child"}},
+             plain_children: [^plain],
+             plain_by_name: %{"plain" => ^plain}
+           } =
+             ModuleContainer.from_map!(%{
+               "child" => %{"name" => "child"},
+               "optional_child" => nil,
+               "plain" => plain,
+               "children" => [%{"name" => "list child"}, existing_child],
+               "children_by_name" => %{"map" => %{"name" => "map child"}},
+               "plain_children" => [plain],
+               "plain_by_name" => %{"plain" => plain}
+             })
+  end
+
+  test "rejects raw maps for plain struct fields with precise paths" do
+    valid = %{
+      "child" => %{"name" => "child"},
+      "plain" => %PlainValue{name: "plain"}
+    }
+
+    error =
+      assert_raise JSONCodec.Error, ~r/invalid_type/, fn ->
+        ModuleContainer.from_map!(%{valid | "plain" => %{"name" => "plain"}})
+      end
+
+    assert error.path == [:plain]
+
+    error =
+      assert_raise JSONCodec.Error, ~r/invalid_type/, fn ->
+        valid
+        |> Map.put("plain_children", [%{"name" => "plain"}])
+        |> ModuleContainer.from_map!()
+      end
+
+    assert error.path == [:plain_children, 0]
+
+    error =
+      assert_raise JSONCodec.Error, ~r/invalid_type/, fn ->
+        valid
+        |> Map.put("plain_by_name", %{"plain" => %{"name" => "plain"}})
+        |> ModuleContainer.from_map!()
+      end
+
+    assert error.path == [:plain_by_name, "plain"]
   end
 
   test "cast can produce declared non-JSONCodec structs without requiring from_map" do
