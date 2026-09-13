@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+## 0.2.4 - 2026-09-13
+
+### Fixed
+
+- Recursive codec schemas now export finite `$ref` references instead of expanding indefinitely, including self-referential and mutually recursive types.
+
 ## 0.2.3 - 2026-07-13
 
 - Resolve declared codec modules at decode time instead of relying on compile-time module load order.

@@ -4,7 +4,7 @@ defmodule JSONCodec.MixProject do
   def project do
     [
       app: :json_codec,
-      version: "0.2.3",
+      version: "0.2.4",
       elixir: "~> 1.16",
       start_permanent: Mix.env() == :prod,
       description: "Compile-time generated codecs for JSON-shaped Elixir structs",
@@ -32,6 +32,7 @@ defmodule JSONCodec.MixProject do
   defp deps do
     [
       {:jason, "~> 1.4"},
+      {:json_spec, "~> 1.2"},
       {:benchee, "~> 1.5", only: :dev, runtime: false},
       {:spectral, "~> 0.13.0", only: :dev, runtime: false},
       {:ex_slop, "~> 0.4", only: [:dev, :test], runtime: false},
