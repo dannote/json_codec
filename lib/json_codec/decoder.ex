@@ -78,6 +78,21 @@ defmodule JSONCodec.Decoder do
     end
   end
 
+  def decode(value, {:one_of, types} = expected, path, opts, source) do
+    result =
+      Enum.reduce_while(types, :error, fn type, :error ->
+        case decode_alternative(value, type, path, opts, source) do
+          {:ok, _} = result -> {:halt, result}
+          :error -> {:cont, :error}
+        end
+      end)
+
+    case result do
+      {:ok, decoded} -> decoded
+      :error -> type_error!(path, expected, value)
+    end
+  end
+
   def decode(value, :atom, _path, _opts, _source) when is_atom(value), do: value
 
   def decode(value, :atom, path, opts, _source) when is_binary(value) do
@@ -136,6 +151,12 @@ defmodule JSONCodec.Decoder do
 
   def type_error!(path, expected, value) do
     raise Error, path: path, expected: expected, got: value, reason: :invalid_type
+  end
+
+  defp decode_alternative(value, type, path, opts, source) do
+    {:ok, decode(value, type, path, opts, source)}
+  rescue
+    _error in Error -> :error
   end
 
   defp codec_module?(module) do

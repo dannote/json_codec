@@ -290,7 +290,7 @@ defmodule JSONCodec do
   defp parse_struct_type(_type_ast, _module, _env), do: %{}
 
   defp normalize_type({:|, _, _} = union, env) do
-    values = union |> collect_union() |> Enum.map(&normalize_type(&1, env))
+    values = union |> collect_union() |> Enum.map(&normalize_union_member(&1, env))
     non_nil = Enum.reject(values, &is_nil/1)
 
     type =
@@ -347,7 +347,14 @@ defmodule JSONCodec do
 
   defp collect_union(other, acc), do: [other | acc]
 
-  defp enum_values?(values), do: Enum.all?(values, &is_atom/1) and nil not in values
+  defp normalize_union_member(value, _env) when is_boolean(value), do: {:literal, value}
+
+  defp normalize_union_member(value, _env) when is_atom(value) and not is_nil(value),
+    do: {:enum, [value]}
+
+  defp normalize_union_member(ast, env), do: normalize_type(ast, env)
+
+  defp enum_values?(values), do: Enum.all?(values, &match?({:enum, _}, &1))
 
   defp flatten_enum(values) do
     values
