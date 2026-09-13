@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.5 - 2026-09-13
+
+### Fixed
+
+- Correctly decode and export mixed-type unions such as `String.t() | integer()`, while preserving literal atom enums. Nullable unions, nested list/map values, and remote codec alternatives are supported.
+
 ## 0.2.4 - 2026-09-13
 
 ### Fixed
