@@ -430,6 +430,42 @@ defmodule JSONCodecTest do
              })
   end
 
+  test "errors inside nested codecs carry the path from the root" do
+    ref = fn arity ->
+      %{
+        "type" => "argument",
+        "function" => %{"module" => "M", "function" => "f", "arity" => arity}
+      }
+    end
+
+    valid = %{"from" => ref.(1), "to" => ref.(2)}
+
+    error =
+      assert_raise JSONCodec.Error, ~r/\.to\.function\.arity: invalid_type/, fn ->
+        DataFlow.from_map!(%{valid | "to" => ref.("two")})
+      end
+
+    assert error.path == [:to, :function, :arity]
+
+    error =
+      assert_raise JSONCodec.Error, ~r/missing_required_field/, fn ->
+        valid |> Map.put("through", [ref.(3), %{"type" => "return"}]) |> DataFlow.from_map!()
+      end
+
+    assert error.path == [:through, 1, :function]
+
+    error =
+      assert_raise JSONCodec.Error, fn ->
+        ModuleContainer.from_map!(%{
+          "child" => %{"name" => "child"},
+          "plain" => %PlainValue{name: "plain"},
+          "children_by_name" => %{"bad" => %{"name" => 1}}
+        })
+      end
+
+    assert error.path == [:children_by_name, "bad", :name]
+  end
+
   test "returns structured errors" do
     assert {:error, error} = PackageManifest.from_map(%{"version" => "1.0.0"})
     assert %JSONCodec.Error{path: [:name], reason: :missing_required_field} = error

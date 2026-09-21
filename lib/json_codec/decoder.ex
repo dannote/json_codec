@@ -142,11 +142,19 @@ defmodule JSONCodec.Decoder do
         value
 
       is_map(value) and codec_module?(module) ->
-        module.from_map!(value)
+        nested_from_map!(value, module, path)
 
       true ->
         type_error!(path, module, value)
     end
+  end
+
+  # A nested codec reports paths relative to itself; prefix ours so the error
+  # names the field from the root, however deep the nesting.
+  defp nested_from_map!(value, module, path) do
+    module.from_map!(value)
+  rescue
+    error in Error -> reraise %{error | path: path ++ error.path}, __STACKTRACE__
   end
 
   def type_error!(path, expected, value) do
