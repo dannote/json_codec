@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+## 0.2.6 - 2026-09-21
+
+### Fixed
+
+- Errors raised inside a nested codec now carry the path from the root, such as `[:answers, "security", :noul]`, instead of the path relative to the nested struct. Applies to direct fields, list elements, and map values.
+
 ## 0.2.5 - 2026-09-13
 
 ### Fixed
