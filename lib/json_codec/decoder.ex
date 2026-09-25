@@ -113,6 +113,13 @@ defmodule JSONCodec.Decoder do
     end
   end
 
+  def decode(value, :existing_atom, _path, _opts, _source) when is_atom(value), do: value
+
+  def decode(value, :existing_atom, path, _opts, _source) when is_binary(value),
+    do: existing_atom!(value, path)
+
+  def decode(value, :existing_atom, path, _opts, _source), do: type_error!(path, :atom, value)
+
   def decode(value, :atom, _path, _opts, _source) when is_atom(value), do: value
 
   def decode(value, :atom, path, opts, _source) when is_binary(value) do
@@ -234,6 +241,12 @@ defmodule JSONCodec.Decoder do
       fun when is_function(fun, 3) -> fun.(key, value, source)
       fun when is_function(fun, 2) -> fun.(key, value)
     end
+  end
+
+  def existing_atom!(string, path) do
+    String.to_existing_atom(string)
+  rescue
+    ArgumentError -> type_error!(path, :existing_atom, string)
   end
 
   defp decode_atom_enum(value, values, path) do

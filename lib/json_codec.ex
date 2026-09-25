@@ -206,6 +206,7 @@ defmodule JSONCodec do
         name: name,
         json: Keyword.get(opts, :as, json_key(name, codec_options)),
         type: type,
+        decode_type: resolve_atom_policy(type, Keyword.get(opts, :atom, :existing), name, env),
         required: required?,
         default?: not required?,
         default: default,
@@ -358,6 +359,33 @@ defmodule JSONCodec do
     |> Enum.uniq()
   end
 
+  # Resolve `atom()` against the field's atom policy once, at compile time, so
+  # decoding never looks the policy up.
+  defp resolve_atom_policy(:atom, :existing, _field, _env), do: :existing_atom
+  defp resolve_atom_policy(:atom, {:enum, values}, _field, _env), do: {:enum, values}
+
+  defp resolve_atom_policy(:atom, policy, field, env) do
+    raise CompileError,
+      file: env.file,
+      line: env.line,
+      description:
+        "invalid JSONCodec atom policy #{inspect(policy)} for #{inspect(field)}. " <>
+          "Expected :existing or {:enum, atoms}"
+  end
+
+  defp resolve_atom_policy({:list, type}, policy, field, env),
+    do: {:list, resolve_atom_policy(type, policy, field, env)}
+
+  defp resolve_atom_policy({:nullable, type}, policy, field, env),
+    do: {:nullable, resolve_atom_policy(type, policy, field, env)}
+
+  defp resolve_atom_policy({:map, key_type, value_type}, policy, field, env) do
+    {:map, resolve_atom_policy(key_type, policy, field, env),
+     resolve_atom_policy(value_type, policy, field, env)}
+  end
+
+  defp resolve_atom_policy(type, _policy, _field, _env), do: type
+
   defp nullable_type?({:nullable, _type}), do: true
   defp nullable_type?(_type), do: false
 
@@ -463,11 +491,11 @@ defmodule JSONCodec do
   defp defaulted_field_ast(present, _field, _decoder), do: present
 
   defp decoded_field_ast(defaulted, %{required: true} = field, path) do
-    decode_value_ast(defaulted, field.type, path, field.opts, quote(do: map))
+    decode_value_ast(defaulted, field.decode_type, path, field.opts, quote(do: map))
   end
 
   defp decoded_field_ast(defaulted, field, path) do
-    decode_type = non_nil_type(field.type)
+    decode_type = non_nil_type(field.decode_type)
 
     quote do
       case unquote(defaulted) do
@@ -548,6 +576,16 @@ defmodule JSONCodec do
       case unquote(value) do
         integer when is_integer(integer) and integer > 0 -> integer
         other -> JSONCodec.Decoder.type_error!(unquote(path), :pos_integer, other)
+      end
+    end
+  end
+
+  defp decode_value_ast(value, :existing_atom, path, _opts, _source) do
+    quote do
+      case unquote(value) do
+        atom when is_atom(atom) -> atom
+        string when is_binary(string) -> JSONCodec.Decoder.existing_atom!(string, unquote(path))
+        other -> JSONCodec.Decoder.type_error!(unquote(path), :atom, other)
       end
     end
   end

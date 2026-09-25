@@ -606,6 +606,19 @@ defmodule JSONCodecTest do
              Map.new(PackageManifest.__json_codec_fields__(), &{&1.name, &1.required})
   end
 
+  test "rejects unknown atom policies at compile time" do
+    assert_raise CompileError, ~r/invalid JSONCodec atom policy :unsafe/, fn ->
+      Code.compile_string("""
+      defmodule UnsafeAtoms do
+        use JSONCodec
+        defstruct [:names]
+        @type t :: %__MODULE__{names: [atom()]}
+        codec :names, atom: :unsafe
+      end
+      """)
+    end
+  end
+
   test "rejects anonymous function callbacks at compile time" do
     assert_raise CompileError, ~r/remote capture/, fn ->
       Code.compile_string("""
