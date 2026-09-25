@@ -460,11 +460,26 @@ defmodule JSONCodec do
 
     raw = raw_value_ast(raw_strategy, decoder, field.name, field.json)
     present = present_field_ast(raw, raw_strategy, field, decoder, path, type)
-    defaulted = defaulted_field_ast(present, field, decoder)
-    casted = cast_ast(defaulted, Keyword.get(field.opts, :cast), field.required, path, type)
-    decoded = decoded_field_ast(casted, field, path)
 
-    transform_ast(decoded, Keyword.get(field.opts, :transform))
+    if field.default? do
+      # Defaults are already Elixir values of the declared type, so they
+      # bypass cast, decode, and transform, like a struct literal.
+      quote do
+        case unquote(present) do
+          :__json_codec_missing__ -> unquote(default_ast(field.default))
+          value -> unquote(value_pipeline_ast(quote(do: value), field, path, type))
+        end
+      end
+    else
+      value_pipeline_ast(present, field, path, type)
+    end
+  end
+
+  defp value_pipeline_ast(value, field, path, type) do
+    value
+    |> cast_ast(Keyword.get(field.opts, :cast), path, type)
+    |> decoded_field_ast(field, path)
+    |> transform_ast(Keyword.get(field.opts, :transform))
   end
 
   defp present_field_ast(raw, raw_strategy, field, decoder, path, type) do
@@ -482,17 +497,6 @@ defmodule JSONCodec do
     end
   end
 
-  defp defaulted_field_ast(present, %{default?: true, default: default}, _decoder) do
-    quote do
-      case unquote(present) do
-        :__json_codec_missing__ -> unquote(default_ast(default))
-        value -> value
-      end
-    end
-  end
-
-  defp defaulted_field_ast(present, _field, _decoder), do: present
-
   defp default_ast(default) when is_function(default, 0),
     do: quote(do: unquote(Macro.escape(default)).())
 
@@ -507,9 +511,6 @@ defmodule JSONCodec do
 
     quote do
       case unquote(defaulted) do
-        :__json_codec_missing__ ->
-          nil
-
         nil ->
           nil
 
@@ -828,19 +829,8 @@ defmodule JSONCodec do
     end
   end
 
-  defp cast_ast(value, nil, _required?, _path, _type), do: value
-  defp cast_ast(value, cast, true, path, type), do: checked_cast_ast(value, cast, path, type)
-
-  defp cast_ast(value, cast, false, path, type) do
-    casted = checked_cast_ast(value, cast, path, type)
-
-    quote do
-      case unquote(value) do
-        :__json_codec_missing__ -> :__json_codec_missing__
-        _ -> unquote(casted)
-      end
-    end
-  end
+  defp cast_ast(value, nil, _path, _type), do: value
+  defp cast_ast(value, cast, path, type), do: checked_cast_ast(value, cast, path, type)
 
   defp primitive_type?(type) do
     type in [

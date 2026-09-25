@@ -228,6 +228,20 @@ defmodule JSONCodecTest do
     codec(:state, atom: {:enum, @states})
   end
 
+  defmodule OptionalCast do
+    use JSONCodec, strict: true, fast_path: :json
+
+    defstruct [:expires_at, count: 1]
+    @type t :: %__MODULE__{expires_at: DateTime.t() | nil, count: pos_integer()}
+
+    codec(:expires_at, cast: :from_milliseconds)
+    codec(:count, transform: :double)
+
+    def from_milliseconds(ms) when is_integer(ms), do: DateTime.from_unix(ms, :millisecond)
+    def from_milliseconds(_ms), do: :error
+    def double(count), do: count * 2
+  end
+
   defmodule BadCastReturn do
     use JSONCodec, strict: true, fast_path: :json
 
@@ -604,6 +618,13 @@ defmodule JSONCodecTest do
   test "fields are required unless nullable or defaulted" do
     assert %{name: true, version: false, dev_dependencies: false} =
              Map.new(PackageManifest.__json_codec_fields__(), &{&1.name, &1.required})
+  end
+
+  test "defaults bypass cast, decode, and transform" do
+    assert {:ok, %OptionalCast{expires_at: nil, count: 1}} = OptionalCast.from_map(%{})
+
+    assert {:ok, %OptionalCast{expires_at: %DateTime{}, count: 6}} =
+             OptionalCast.from_map(%{"expires_at" => 0, "count" => 3})
   end
 
   test "rejects unknown atom policies at compile time" do
