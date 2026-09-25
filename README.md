@@ -11,6 +11,7 @@ Agent instructions for consumers are available at <https://github.com/dannote/js
 `JSONCodec` uses normal Elixir declarations as the source of truth:
 
 - `defstruct` for fields and defaults
+- `@type t` nullability for optional fields: a field is required unless its type allows `nil` or it has a non-`nil` default
 - `@type t` for field types
 - `codec/2` only for JSON-specific field metadata
 
@@ -55,8 +56,8 @@ FunctionID.decode!(json)
 FunctionID.decode(json)
 FunctionID.from_map!(map)
 FunctionID.from_map(map)
-FunctionID.to_map(struct)
-FunctionID.schema()
+FunctionID.dump(struct)
+FunctionID.json_schema()
 ```
 
 Top-level helpers are also available:
@@ -64,7 +65,8 @@ Top-level helpers are also available:
 ```elixir
 JSONCodec.decode!(json, FunctionID)
 JSONCodec.from_map!(map, FunctionID)
-JSONCodec.schema(FunctionID)
+JSONCodec.dump(struct)
+JSONCodec.json_schema(FunctionID)
 ```
 
 ## Why another JSON library?
@@ -127,7 +129,7 @@ JSONCodec.dump(manifest)
 #=> %{"name" => "demo", "version" => nil, "devDependencies" => %{"jason" => "~> 1.4"}}
 ```
 
-`to_map/1` remains a compatibility helper that stringifies atom keys recursively.
+Structs that are not codecs, such as `DateTime`, are returned unchanged so the JSON encoder serializes them.
 
 `fast_path: :json` generates an optimized first `from_map!/1` clause for normal `Jason`-decoded JSON maps with string keys. If that fast string-key clause does not match, `JSONCodec` falls back to the full generic decoder, including atom-key lookup and detailed missing-field handling.
 
@@ -281,11 +283,9 @@ Read from `@type t`:
 Each codec module exports a JSON Schema-compatible map:
 
 ```elixir
-FunctionID.schema()
-JSONCodec.schema(FunctionID)
+FunctionID.json_schema()
+JSONCodec.json_schema(FunctionID)
 ```
-
-`json_schema/0` and `JSONCodec.json_schema/1` are also available as explicit aliases.
 
 This is intentionally compatible with the direction of `JSONSpec`: codecs are the fast construction layer; schema validation can remain a separate layer.
 

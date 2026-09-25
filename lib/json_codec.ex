@@ -10,16 +10,12 @@ defmodule JSONCodec do
 
   alias JSONCodec.Error
 
-  @missing :__json_codec_missing__
-
   defmacro __using__(opts \\ []) do
     opts = Macro.expand(opts, __CALLER__)
 
     quote bind_quoted: [opts: opts] do
-      import Kernel, except: [defstruct: 1]
-      import JSONCodec, only: [defstruct: 1, codec: 2, computed: 2]
+      import JSONCodec, only: [codec: 2, computed: 2]
 
-      Module.register_attribute(__MODULE__, :json_codec_struct_fields, accumulate: false)
       Module.register_attribute(__MODULE__, :json_codec_options, accumulate: false)
       Module.register_attribute(__MODULE__, :json_codec_field_options, accumulate: true)
       Module.register_attribute(__MODULE__, :json_codec_computed, accumulate: true)
@@ -29,19 +25,10 @@ defmodule JSONCodec do
     end
   end
 
-  defmacro defstruct(fields) do
-    quote do
-      @json_codec_struct_fields unquote(fields)
-      Kernel.defstruct(unquote(fields))
-    end
-  end
-
+  # Options are evaluated in the module body, so they may use module attributes.
   defmacro codec(name, opts) when is_atom(name) do
-    caller = __CALLER__
-    {opts, _binding} = Code.eval_quoted(opts, [], caller)
-
-    quote bind_quoted: [name: name, opts: Macro.escape(opts)] do
-      @json_codec_field_options {name, opts}
+    quote do
+      @json_codec_field_options {unquote(name), unquote(opts)}
     end
   end
 
@@ -62,7 +49,7 @@ defmodule JSONCodec do
   defp before_compile_context(env) do
     module = env.module
     codec_options = Module.get_attribute(module, :json_codec_options) || []
-    struct_fields = Module.get_attribute(module, :json_codec_struct_fields) || []
+    struct_fields = struct_defaults!(env)
     field_options = field_options(module)
     computed = computed_fields(module)
     type_fields = parse_type_fields(module, env)
@@ -136,23 +123,13 @@ defmodule JSONCodec do
         unquote(computed_result)
       end
 
-      @doc "Converts this struct into a JSON-shaped map."
-      def to_map(%__MODULE__{} = struct) do
-        JSONCodec.to_map(struct)
-      end
-
       @doc "Dumps this struct into JSON-shaped data, respecting JSON field names."
       def dump(%__MODULE__{} = struct) do
         JSONCodec.dump(struct)
       end
 
       @doc "Returns a JSON Schema-compatible schema map."
-      def schema do
-        JSONCodec.Schema.object(__MODULE__)
-      end
-
-      @doc "Returns a JSON Schema-compatible schema map."
-      def json_schema, do: schema()
+      def json_schema, do: JSONCodec.Schema.object(__MODULE__)
     end
   end
 
@@ -192,23 +169,15 @@ defmodule JSONCodec do
   @doc "Builds `module` from a decoded JSON map, raising on failure."
   def from_map!(map, module) when is_map(map) and is_atom(module), do: module.from_map!(map)
 
-  @doc "Converts a struct or value into JSON-shaped Elixir data."
-  def to_map(value)
-  def to_map(%_{} = struct), do: struct |> Map.from_struct() |> to_map()
-  def to_map(%{} = map), do: Map.new(map, fn {key, value} -> {encode_key(key), to_map(value)} end)
-  def to_map(values) when is_list(values), do: Enum.map(values, &to_map/1)
-  def to_map(value) when is_boolean(value), do: value
-  def to_map(value) when is_atom(value) and not is_nil(value), do: Atom.to_string(value)
-  def to_map(value), do: value
-
   @doc "Dumps a value into JSON-shaped Elixir data, respecting JSONCodec field names."
   def dump(value)
 
+  # Structs that are not codecs, such as `DateTime`, are left for the JSON encoder.
   def dump(%module{} = struct) do
     if function_exported?(module, :__json_codec_fields__, 0) do
       dump_json_codec(struct, module.__json_codec_fields__())
     else
-      struct |> Map.from_struct() |> dump()
+      struct
     end
   end
 
@@ -220,40 +189,44 @@ defmodule JSONCodec do
   def dump(value), do: value
 
   @doc "Returns a JSON Schema-compatible schema map for a JSONCodec module."
-  def schema(module), do: JSONCodec.Schema.object(module)
-
-  @doc "Returns a JSON Schema-compatible schema map for a JSONCodec module."
-  def json_schema(module), do: schema(module)
+  def json_schema(module), do: JSONCodec.Schema.object(module)
 
   defp build_fields(module, struct_fields, type_fields, field_options, codec_options, env) do
-    defaults = struct_defaults(struct_fields)
+    defaults = struct_fields
     field_names = Map.keys(defaults)
 
     Enum.map(field_names, fn name ->
       opts = Map.get(field_options, name, []) |> normalize_callbacks(module, name, env)
       type = Map.get(type_fields, name, :any)
       default = Map.fetch!(defaults, name)
-      default? = default != @missing
-      nullable? = nullable_type?(type)
+      # A field is required unless its type is nullable or it has a non-nil default.
+      required? = is_nil(default) and not nullable_type?(type)
 
       %{
         name: name,
         json: Keyword.get(opts, :as, json_key(name, codec_options)),
         type: type,
-        required: not default? and not nullable?,
-        default?: default?,
-        default: if(default?, do: default, else: nil),
+        required: required?,
+        default?: not required?,
+        default: default,
         opts: opts,
         module: module
       }
     end)
   end
 
-  defp struct_defaults(fields) when is_list(fields) do
-    Map.new(fields, fn
-      {name, default} when is_atom(name) -> {name, default}
-      name when is_atom(name) -> {name, @missing}
-    end)
+  defp struct_defaults!(env) do
+    case Module.get_definition(env.module, {:__struct__, 0}) do
+      {:v1, :def, _meta, [{_clause_meta, [], [], struct_ast}]} ->
+        {struct, _binding} = Code.eval_quoted(struct_ast)
+        Map.delete(struct, :__struct__)
+
+      nil ->
+        raise CompileError,
+          file: env.file,
+          line: env.line,
+          description: "use JSONCodec requires a defstruct in #{inspect(env.module)}"
+    end
   end
 
   defp normalize_callbacks(opts, module, field, env) do
@@ -274,16 +247,24 @@ defmodule JSONCodec do
         Keyword.put(opts, key, {:local, module, fun, arity})
 
       {:ok, fun} when is_function(fun, arity) ->
-        opts
+        if Function.info(fun, :type) == {:type, :external} do
+          opts
+        else
+          invalid_callback!(key, arity, field, fun, env)
+        end
 
       {:ok, other} ->
-        raise CompileError,
-          file: env.file,
-          line: env.line,
-          description:
-            "invalid JSONCodec option #{inspect(key)} for #{inspect(field)}. " <>
-              "Expected a local function name atom or remote capture with arity #{arity}, got: #{inspect(other)}"
+        invalid_callback!(key, arity, field, other, env)
     end
+  end
+
+  defp invalid_callback!(key, arity, field, value, env) do
+    raise CompileError,
+      file: env.file,
+      line: env.line,
+      description:
+        "invalid JSONCodec option #{inspect(key)} for #{inspect(field)}. " <>
+          "Expected a local function name atom or remote capture with arity #{arity}, got: #{inspect(value)}"
   end
 
   defp parse_type_fields(module, env) do

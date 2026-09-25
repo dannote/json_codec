@@ -6,6 +6,14 @@
 
 - `cast:` callbacks return `{:ok, value}`, `:error`, or `{:error, reason}`, like `Ecto.Type.cast/1`. Rejections become a `JSONCodec.Error` with `reason: :invalid_value`, so `decode/1` and `from_map/1` return errors instead of crashing. Wrap results in `{:ok, value}`; plain captures like `&String.trim/1` need a wrapper.
 - Invalid JSON is a `JSONCodec.Error` with `reason: :invalid_json`, not a `Jason.DecodeError`.
+- `use JSONCodec` no longer replaces `defstruct`. A field is required unless its type allows `nil` or it has a non-`nil` default, so `defstruct name: nil` with a non-nullable type is now required.
+- Removed `to_map/1` (use `dump/1`, which respects JSON field names) and `schema/0,1` (use `json_schema/0,1`).
+- `dump/1` returns structs that are not codecs, such as `DateTime`, unchanged for the JSON encoder instead of flattening their fields.
+
+### Fixed
+
+- `codec/2` options can use module attributes, such as `atom: {:enum, @states}`; anonymous function callbacks now fail at compile time.
+- Missing required fields report `got: nil` instead of an internal marker.
 
 ### Added
 

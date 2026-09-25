@@ -217,6 +217,17 @@ defmodule JSONCodecTest do
     def expires_datetime(_expires), do: :error
   end
 
+  defmodule AttributeOptions do
+    use JSONCodec, strict: true, fast_path: :json
+
+    @states [:active, :inactive]
+
+    defstruct [:state]
+    @type t :: %__MODULE__{state: atom()}
+
+    codec(:state, atom: {:enum, @states})
+  end
+
   defmodule BadCastReturn do
     use JSONCodec, strict: true, fast_path: :json
 
@@ -561,18 +572,51 @@ defmodule JSONCodecTest do
     end
   end
 
-  test "encodes booleans as booleans and atoms as strings" do
-    assert FeatureFlag.to_map(%FeatureFlag{name: "demo", enabled: true, state: :active}) == %{
+  test "dumps booleans as booleans and atoms as strings" do
+    assert FeatureFlag.dump(%FeatureFlag{name: "demo", enabled: true, state: :active}) == %{
              "name" => "demo",
              "enabled" => true,
              "state" => "active"
            }
 
-    assert JSONCodec.to_map(%{ok: true, error: false, state: :done}) == %{
+    assert JSONCodec.dump(%{ok: true, error: false, state: :done}) == %{
              "ok" => true,
              "error" => false,
              "state" => "done"
            }
+  end
+
+  test "leaves structs that are not codecs to the JSON encoder" do
+    at = ~U[2026-01-01 00:00:00Z]
+    assert JSONCodec.dump(%{at: at}) == %{"at" => at}
+    assert Jason.encode!(JSONCodec.dump(%{at: at})) == ~s({"at":"2026-01-01T00:00:00Z"})
+  end
+
+  test "codec options may use module attributes" do
+    assert %AttributeOptions{state: :active} = AttributeOptions.from_map!(%{"state" => "active"})
+  end
+
+  test "missing required fields report got: nil" do
+    assert {:error, %JSONCodec.Error{path: [:name], got: nil, reason: :missing_required_field}} =
+             PackageManifest.from_map(%{})
+  end
+
+  test "fields are required unless nullable or defaulted" do
+    assert %{name: true, version: false, dev_dependencies: false} =
+             Map.new(PackageManifest.__json_codec_fields__(), &{&1.name, &1.required})
+  end
+
+  test "rejects anonymous function callbacks at compile time" do
+    assert_raise CompileError, ~r/remote capture/, fn ->
+      Code.compile_string("""
+      defmodule AnonymousCast do
+        use JSONCodec
+        defstruct [:name]
+        @type t :: %__MODULE__{name: String.t()}
+        codec :name, cast: fn value -> {:ok, value} end
+      end
+      """)
+    end
   end
 
   test "dumps JSONCodec structs using JSON field names" do
@@ -600,10 +644,8 @@ defmodule JSONCodecTest do
              "type" => "object",
              "required" => ["name"],
              "properties" => %{"devDependencies" => %{"type" => "object"}}
-           } = PackageManifest.schema()
+           } = PackageManifest.json_schema()
 
-    assert PackageManifest.json_schema() == PackageManifest.schema()
-    assert JSONCodec.schema(PackageManifest) == PackageManifest.schema()
-    assert JSONCodec.json_schema(PackageManifest) == PackageManifest.schema()
+    assert JSONCodec.json_schema(PackageManifest) == PackageManifest.json_schema()
   end
 end

@@ -50,7 +50,7 @@ defmodule JSONCodec.SchemaTest do
   end
 
   test "self recursion uses a reference to the containing schema" do
-    schema = Node.schema()
+    schema = Node.json_schema()
     assert schema["properties"]["children"]["items"] == %{"$ref" => "#"}
     assert schema["properties"]["indexed"]["additionalProperties"] == %{"$ref" => "#"}
     assert schema["properties"]["parent"] == %{"$ref" => "#", "nullable" => true}
@@ -61,15 +61,15 @@ defmodule JSONCodec.SchemaTest do
   end
 
   test "mutual recursion terminates regardless of which module is the root" do
-    assert Left.schema()["properties"]["right"]["properties"]["left"] ==
+    assert Left.json_schema()["properties"]["right"]["properties"]["left"] ==
              %{"$ref" => "#", "nullable" => true}
 
-    assert Right.schema()["properties"]["left"]["properties"]["right"] ==
+    assert Right.json_schema()["properties"]["left"]["properties"]["right"] ==
              %{"$ref" => "#", "nullable" => true}
   end
 
   test "nested recursion points to the correct array and map schemas" do
-    schema = Forest.schema()
+    schema = Forest.json_schema()
     nodes = schema["properties"]["nodes"]["items"]
     indexed = schema["properties"]["indexed"]["additionalProperties"]
     assert nodes["properties"]["children"]["items"]["$ref"] == "#/properties/nodes/items"
@@ -82,7 +82,7 @@ defmodule JSONCodec.SchemaTest do
   end
 
   test "reference paths escape JSON pointer tokens and URI fragments" do
-    schema = Forest.schema()
+    schema = Forest.json_schema()
     node = schema["properties"]["a/b~c #%🦆"]
     reference = node["properties"]["children"]["items"]["$ref"]
     assert reference == "#/properties/a~1b~0c%20%23%25%F0%9F%A6%86"
@@ -90,13 +90,13 @@ defmodule JSONCodec.SchemaTest do
   end
 
   test "repeated acyclic modules stay inline and retain the existing schema shape" do
-    schema = Pair.schema()
+    schema = Pair.json_schema()
 
     assert schema == %{
              "type" => "object",
              "additionalProperties" => false,
              "required" => ["first", "second"],
-             "properties" => %{"first" => Leaf.schema(), "second" => Leaf.schema()}
+             "properties" => %{"first" => Leaf.json_schema(), "second" => Leaf.json_schema()}
            }
   end
 

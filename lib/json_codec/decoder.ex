@@ -17,7 +17,7 @@ defmodule JSONCodec.Decoder do
   end
 
   def required!(@missing, path, expected) do
-    raise Error, path: path, expected: expected, got: @missing, reason: :missing_required_field
+    raise Error, path: path, expected: expected, got: nil, reason: :missing_required_field
   end
 
   def required!(value, _path, _expected), do: value

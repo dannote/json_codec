@@ -105,7 +105,7 @@ defmodule JSONCodec.UnionTest do
     end
 
     test "#{inspect(module)} exports type unions rather than enum markers" do
-      properties = unquote(module).schema()["properties"]
+      properties = unquote(module).json_schema()["properties"]
       union = %{"anyOf" => [%{"type" => "string"}, %{"type" => "integer"}]}
       assert properties["value"] == union
       assert properties["nullable"] == Map.put(union, "nullable", true)
@@ -146,9 +146,9 @@ defmodule JSONCodec.UnionTest do
     assert %ObjectUnion{value: %Count{count: 3}} =
              ObjectUnion.from_map!(%{"value" => %{"count" => 3}})
 
-    assert %{"anyOf" => [text, count]} = ObjectUnion.schema()["properties"]["value"]
-    assert text == Text.schema()
-    assert count == Count.schema()
+    assert %{"anyOf" => [text, count]} = ObjectUnion.json_schema()["properties"]["value"]
+    assert text == Text.json_schema()
+    assert count == Count.json_schema()
   end
 
   test "union fallback does not swallow arbitrary callback exceptions" do
