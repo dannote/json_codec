@@ -78,7 +78,7 @@ defmodule Bench.Codec.DataRef do
           index: non_neg_integer() | nil
         }
 
-  codec(:name, atom: :unsafe)
+  codec(:name, atom: :existing)
 end
 
 defmodule Bench.Codec.DataFlow do
@@ -94,7 +94,7 @@ defmodule Bench.Codec.DataFlow do
           branch: :then | :else | :case | nil
         }
 
-  codec(:variable_names, atom: :unsafe)
+  codec(:variable_names, atom: :existing)
 end
 
 defmodule Bench.Codec.Manifest do

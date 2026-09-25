@@ -158,23 +158,27 @@ defmodule JSONCodec.Decoder do
 
   def decode_module(value, module, path) when is_atom(module) do
     cond do
-      is_struct(value, module) ->
-        value
-
-      is_map(value) and codec_module?(module) ->
-        nested_from_map!(value, module, path)
-
-      true ->
-        type_error!(path, module, value)
+      is_struct(value, module) -> value
+      is_map(value) -> decode_codec(value, module, path)
+      true -> type_error!(path, module, value)
     end
   end
 
-  # A nested codec reports paths relative to itself; prefix ours so the error
-  # names the field from the root, however deep the nesting.
-  defp nested_from_map!(value, module, path) do
-    module.from_map!(value)
+  # Decodes a map through a nested codec without checking up front that
+  # `module` is one: a module without `from_map!/1` is a type error. A nested
+  # codec reports paths relative to itself, so prefix ours to name the field
+  # from the root, however deep the nesting.
+  def decode_codec(map, module, path) do
+    module.from_map!(map)
   rescue
-    error in Error -> reraise %{error | path: path ++ error.path}, __STACKTRACE__
+    error in Error ->
+      reraise %{error | path: path ++ error.path}, __STACKTRACE__
+
+    error in UndefinedFunctionError ->
+      case error do
+        %{module: ^module, function: :from_map!, arity: 1} -> type_error!(path, module, map)
+        _other -> reraise error, __STACKTRACE__
+      end
   end
 
   def type_error!(path, expected, value) do
@@ -185,10 +189,6 @@ defmodule JSONCodec.Decoder do
     {:ok, decode(value, type, path, opts, source)}
   rescue
     _error in Error -> :error
-  end
-
-  defp codec_module?(module) do
-    Code.ensure_loaded?(module) and function_exported?(module, :__json_codec_fields__, 0)
   end
 
   defp append_path([], item), do: [item]
