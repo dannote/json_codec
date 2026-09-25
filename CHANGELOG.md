@@ -10,6 +10,12 @@
 - Removed `to_map/1` (use `dump/1`, which respects JSON field names) and `schema/0,1` (use `json_schema/0,1`).
 - `dump/1` returns structs that are not codecs, such as `DateTime`, unchanged for the JSON encoder instead of flattening their fields.
 
+### Changed
+
+- Generated decoders specialize more at compile time: nested codecs are called directly, atom policies are resolved when the codec compiles, defaults are inlined, and list and map value error paths are built only on failure. On the program facts benchmark this halves BEAM reductions, cuts memory by a third, and brings decoding from about 1.34× to about 1.1× the time of handwritten code.
+- Unknown `atom:` policies are compile errors instead of failing on the first decoded atom.
+- Defaults bypass `cast:`, type decoding, and `transform:`; a missing optional field takes its struct default as is.
+
 ### Fixed
 
 - `codec/2` options can use module attributes, such as `atom: {:enum, @states}`; anonymous function callbacks now fail at compile time.

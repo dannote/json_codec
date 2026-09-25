@@ -297,24 +297,23 @@ Run:
 MIX_ENV=dev mix run bench/program_facts_like.exs
 ```
 
-Machine used for this snapshot: Apple M5, Elixir 1.20, Erlang/OTP 29. Payload: `142 KB`, 250 nested `data_flow` records.
+Machine used for this snapshot: Apple M5, Elixir 1.20, Erlang/OTP 29, with other load on the machine, so compare the ratios rather than absolute times. Payload: `142 KB`, 250 nested `data_flow` records.
 
-| Case | ips | avg | memory |
+| Case | avg | median | memory |
 |---|---:|---:|---:|
-| `JSONCodec` map→struct | 4119.81 | 0.24 ms | 0.35 MB |
-| handwritten map→struct | 4009.64 | 0.25 ms | 0.25 MB |
-| `Jason.decode` only | 1378.28 | 0.73 ms | 1.10 MB |
-| `Spectral` pre-decoded | 1252.96 | 0.80 ms | 3.23 MB |
-| handwritten `Jason`+struct | 980.43 | 1.02 ms | 1.34 MB |
-| `JSONCodec` `Jason`+struct | 972.52 | 1.03 ms | 1.45 MB |
-| `Spectral` native JSON | 654.31 | 1.53 ms | 4.06 MB |
+| handwritten map→struct | 263 µs | 257 µs | 0.25 MB |
+| `JSONCodec` map→struct | 286 µs | 290 µs | 0.35 MB |
+| `Jason.decode` only | 761 µs | 753 µs | 1.10 MB |
+| `Spectral` pre-decoded | 874 µs | 850 µs | 3.23 MB |
+| `JSONCodec` `Jason`+struct | 1031 µs | 997 µs | 1.45 MB |
+| handwritten `Jason`+struct | 1095 µs | 1088 µs | 1.34 MB |
+| `Spectral` native JSON | 1687 µs | 1575 µs | 4.06 MB |
 
 Interpretation:
 
-- With `fast_path: :json`, `JSONCodec` is roughly tied with this handwritten decoder on decoded JSON maps, while still providing a generic fallback path.
-- End-to-end, JSON parsing dominates. `JSONCodec.decode!/1` is within ~1.01× of handwritten `Jason`+struct and ~1.49× faster than `Spectral` native JSON on this shape.
-- On map-heavy Iconify-like data (`mix run bench/iconify_like.exs`), `values_source:` avoids recomputing inherited defaults for every map entry. For advanced map-heavy decoders, `decode_values:` can return the final decoded map value directly when a custom decoder is clearer or faster than transforming a raw map and then invoking the generated nested decoder; in the Iconify-like benchmark this brings `JSONCodec` close to handwritten allocation.
-- The goal is not to beat perfect handwritten code on every shape immediately; it is to make the generated path close enough that hand-written decoders disappear.
+- On decoded maps, `JSONCodec` is about 1.1× the time of this handwritten decoder, doing fewer BEAM reductions but allocating about 1.4× the memory.
+- End-to-end, JSON parsing dominates, and `JSONCodec.decode!/1` is within noise of handwritten `Jason`+struct and about 1.6× faster than `Spectral` native JSON on this shape.
+- On map-heavy Iconify-like data (`mix run bench/iconify_like.exs`), `JSONCodec` with `decode_values:` and `values_source:` is tied with the handwritten decoder in time and uses slightly less memory.
 
 ## Installation
 
