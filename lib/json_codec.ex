@@ -158,16 +158,28 @@ defmodule JSONCodec do
 
   @doc "Decodes a JSON string into `module`."
   def decode(json, module) when is_binary(json) and is_atom(module) do
-    with {:ok, map} <- Jason.decode(json) do
-      from_map(map, module)
+    case Jason.decode(json) do
+      {:ok, map} -> from_map(map, module)
+      {:error, error} -> {:error, invalid_json(error)}
     end
   end
 
   @doc "Decodes a JSON string into `module`, raising on failure."
   def decode!(json, module) when is_binary(json) and is_atom(module) do
-    json
-    |> Jason.decode!()
-    |> from_map!(module)
+    case Jason.decode(json) do
+      {:ok, map} -> from_map!(map, module)
+      {:error, error} -> raise invalid_json(error)
+    end
+  end
+
+  defp invalid_json(%Jason.DecodeError{} = error) do
+    %Error{
+      path: [],
+      expected: :json,
+      got: error.data,
+      reason: :invalid_json,
+      details: Exception.message(error)
+    }
   end
 
   @doc "Builds `module` from a decoded JSON map."
@@ -440,7 +452,7 @@ defmodule JSONCodec do
     raw = raw_value_ast(raw_strategy, decoder, field.name, field.json)
     present = present_field_ast(raw, raw_strategy, field, decoder, path, type)
     defaulted = defaulted_field_ast(present, field, decoder)
-    casted = cast_ast(defaulted, Keyword.get(field.opts, :cast), field.required)
+    casted = cast_ast(defaulted, Keyword.get(field.opts, :cast), field.required, path, type)
     decoded = decoded_field_ast(casted, field, path)
 
     transform_ast(decoded, Keyword.get(field.opts, :transform))
@@ -780,11 +792,11 @@ defmodule JSONCodec do
     end
   end
 
-  defp cast_ast(value, nil, _required?), do: value
-  defp cast_ast(value, cast, true), do: apply_cast_callback_ast(value, cast)
+  defp cast_ast(value, nil, _required?, _path, _type), do: value
+  defp cast_ast(value, cast, true, path, type), do: checked_cast_ast(value, cast, path, type)
 
-  defp cast_ast(value, cast, false) do
-    casted = apply_cast_callback_ast(value, cast)
+  defp cast_ast(value, cast, false, path, type) do
+    casted = checked_cast_ast(value, cast, path, type)
 
     quote do
       case unquote(value) do
@@ -811,6 +823,21 @@ defmodule JSONCodec do
 
   defp transform_ast(decoded, nil), do: decoded
   defp transform_ast(decoded, transform), do: apply_callback_ast(decoded, transform)
+
+  # Casts return `{:ok, value}` or `:error`; the decoder turns `:error` into an
+  # error for this field, so callbacks never need to know their path.
+  defp checked_cast_ast(value, cast, path, type) do
+    quote do
+      raw = unquote(value)
+
+      JSONCodec.Decoder.cast!(
+        unquote(apply_cast_callback_ast(quote(do: raw), cast)),
+        raw,
+        unquote(path),
+        unquote(type)
+      )
+    end
+  end
 
   defp apply_cast_callback_ast(value, {:local, module, fun, _arity}) do
     quote do

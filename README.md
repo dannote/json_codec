@@ -146,7 +146,7 @@ Field processing order is:
 JSON key mapping -> raw value -> cast -> type decode -> transform -> struct field
 ```
 
-Use `cast:` to convert a wire representation into the declared Elixir type before type decoding:
+Use `cast:` to convert a wire representation into the declared Elixir type before type decoding. A cast returns `{:ok, value}` for valid input and `:error` or `{:error, reason}` otherwise, like `Ecto.Type.cast/1`, so stdlib functions such as `DateTime.from_unix/2` can be returned directly:
 
 ```elixir
 defmodule JobPayload do
@@ -158,9 +158,21 @@ defmodule JobPayload do
 
   codec :created_at, as: "createdAtMs", cast: :from_milliseconds
 
-  def from_milliseconds(milliseconds), do: DateTime.from_unix!(milliseconds, :millisecond)
+  def from_milliseconds(milliseconds) when is_integer(milliseconds),
+    do: DateTime.from_unix(milliseconds, :millisecond)
+
+  def from_milliseconds(_milliseconds), do: :error
 end
 ```
+
+Invalid input becomes a `JSONCodec.Error` for that field with `reason: :invalid_value`, the full path from the root, and `details` holding the cast's `reason`:
+
+```elixir
+JobPayload.from_map(%{"id" => "1", "createdAtMs" => "soon"})
+#=> {:error, %JSONCodec.Error{path: [:created_at], reason: :invalid_value, got: "soon", ...}}
+```
+
+Casts never need to know their path. Exceptions raised inside a cast are bugs and propagate unchanged; cover input you mean to reject with a clause that returns `:error`.
 
 Use `transform:` to normalize a value after it has decoded as the declared type:
 
@@ -174,7 +186,7 @@ Local callback atoms are expanded to functions in the same module:
 
 ```elixir
 codec :created_at, cast: :from_milliseconds
-# calls from_milliseconds(value)
+# calls from_milliseconds(value) -> {:ok, value} | :error | {:error, reason}
 
 codec :name, transform: :trim_name
 # calls trim_name(value)

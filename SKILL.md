@@ -145,9 +145,14 @@ defmodule JobPayload do
 
   codec :created_at, as: "createdAtMs", cast: :from_milliseconds
 
-  def from_milliseconds(milliseconds), do: DateTime.from_unix!(milliseconds, :millisecond)
+  def from_milliseconds(milliseconds) when is_integer(milliseconds),
+    do: DateTime.from_unix(milliseconds, :millisecond)
+
+  def from_milliseconds(_milliseconds), do: :error
 end
 ```
+
+A cast returns `{:ok, value}`, `:error`, or `{:error, reason}`, like `Ecto.Type.cast/1`. Rejected input becomes a `JSONCodec.Error` for the field with the full path from the root, so never build `JSONCodec.Error` or compute paths inside a cast. Do not rescue inside casts: return `:error` for input you reject and let real bugs raise.
 
 Callback forms:
 
@@ -165,7 +170,7 @@ key mapping -> raw value -> cast -> type decode -> transform -> struct
 ```
 
 - `case:` / `as:` maps JSON keys to struct fields.
-- `cast:` converts raw wire values before type decoding.
+- `cast:` converts raw wire values before type decoding and returns `{:ok, value}`, `:error`, or `{:error, reason}`.
 - `transform:` normalizes already-decoded values.
 
 Example transform:

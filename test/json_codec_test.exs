@@ -179,7 +179,7 @@ defmodule JSONCodecTest do
 
     codec(:wrapped, cast: :wrap)
 
-    def wrap(value), do: %CastOnlyStruct{value: value}
+    def wrap(value), do: {:ok, %CastOnlyStruct{value: value}}
   end
 
   defmodule CastEvent do
@@ -194,9 +194,10 @@ defmodule JSONCodecTest do
           }
 
     codec(:created_at, as: "createdAtMs", cast: :datetime_ms)
-    codec(:normalized_name, cast: &String.trim/1, transform: :upcase)
+    codec(:normalized_name, cast: :trim, transform: :upcase)
 
-    def datetime_ms(milliseconds), do: DateTime.from_unix!(milliseconds, :millisecond)
+    def datetime_ms(milliseconds), do: DateTime.from_unix(milliseconds, :millisecond)
+    def trim(value), do: {:ok, String.trim(value)}
     def upcase(value), do: String.upcase(value)
   end
 
@@ -210,8 +211,28 @@ defmodule JSONCodecTest do
     codec(:expires_at, as: "expires", cast: :expires_datetime)
 
     def expires_datetime(expires) when is_integer(expires) do
-      expires |> DateTime.from_unix!(:millisecond) |> DateTime.truncate(:second)
+      {:ok, expires |> DateTime.from_unix!(:millisecond) |> DateTime.truncate(:second)}
     end
+
+    def expires_datetime(_expires), do: :error
+  end
+
+  defmodule BadCastReturn do
+    use JSONCodec, strict: true, fast_path: :json
+
+    defstruct [:value]
+    @type t :: %__MODULE__{value: String.t()}
+
+    codec(:value, cast: :plain)
+
+    def plain(value), do: value
+  end
+
+  defmodule CastHolder do
+    use JSONCodec, strict: true, fast_path: :json
+
+    defstruct [:events]
+    @type t :: %__MODULE__{events: [GuardedDateTimeCast.t()]}
   end
 
   defmodule StrictPackageManifest do
@@ -401,6 +422,52 @@ defmodule JSONCodecTest do
              GuardedDateTimeCast.from_map!(%{"expires" => expires})
 
     assert DateTime.to_unix(expires_at, :millisecond) == expires
+  end
+
+  test "a cast returning :error becomes an invalid value error for its field" do
+    assert {:error, %JSONCodec.Error{path: [:expires_at], got: "soon", reason: :invalid_value}} =
+             GuardedDateTimeCast.from_map(%{"expires" => "soon"})
+
+    assert_raise JSONCodec.Error, ~r/expires_at: invalid_value/, fn ->
+      GuardedDateTimeCast.from_map!(%{"expires" => "soon"})
+    end
+  end
+
+  test "a cast returning {:error, reason} keeps the reason as details" do
+    assert {:error,
+            %JSONCodec.Error{
+              path: [:created_at],
+              reason: :invalid_value,
+              details: :invalid_unix_time
+            } = error} =
+             CastEvent.from_map(%{
+               "name" => "x",
+               "createdAtMs" => 99_999_999_999_999_999,
+               "normalizedName" => "x"
+             })
+
+    assert Exception.message(error) =~ "created_at: invalid_value (:invalid_unix_time)"
+  end
+
+  test "invalid JSON is a JSONCodec.Error" do
+    assert {:error, %JSONCodec.Error{path: [], reason: :invalid_json, details: details}} =
+             GuardedDateTimeCast.decode("not json")
+
+    assert details =~ "unexpected byte"
+    assert_raise JSONCodec.Error, ~r/invalid_json/, fn -> GuardedDateTimeCast.decode!("{") end
+  end
+
+  test "nested cast errors report their full path" do
+    assert {:error, %JSONCodec.Error{path: [:events, 1, :expires_at], reason: :invalid_value}} =
+             CastHolder.from_map(%{"events" => [%{"expires" => 0}, %{"expires" => "soon"}]})
+  end
+
+  test "a cast returning a bare value is a contract violation" do
+    assert_raise ArgumentError,
+                 ~r/must return \{:ok, value\}, :error, or \{:error, reason\}/,
+                 fn ->
+                   BadCastReturn.from_map(%{"value" => "x"})
+                 end
   end
 
   test "fast JSON path decodes map values through local callback" do

@@ -22,6 +22,26 @@ defmodule JSONCodec.Decoder do
 
   def required!(value, _path, _expected), do: value
 
+  def cast!({:ok, value}, _raw, _path, _expected), do: value
+
+  def cast!(:error, raw, path, expected) do
+    raise Error, path: path, expected: expected, got: raw, reason: :invalid_value
+  end
+
+  def cast!({:error, details}, raw, path, expected) do
+    raise Error,
+      path: path,
+      expected: expected,
+      got: raw,
+      reason: :invalid_value,
+      details: details
+  end
+
+  def cast!(other, _raw, path, _expected) do
+    raise ArgumentError,
+          "cast callback for #{inspect(path)} must return {:ok, value}, :error, or {:error, reason}, got: #{inspect(other)}"
+  end
+
   def default(@missing, fun) when is_function(fun, 0), do: fun.()
   def default(@missing, value), do: value
   def default(value, _default), do: value
