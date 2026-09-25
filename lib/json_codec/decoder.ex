@@ -3,7 +3,7 @@ defmodule JSONCodec.Decoder do
 
   alias JSONCodec.Error
 
-  @compile {:inline, default: 2, fetch_field: 3, required!: 3}
+  @compile {:inline, fetch_field: 3, required!: 3}
 
   @missing :__json_codec_missing__
 
@@ -41,10 +41,6 @@ defmodule JSONCodec.Decoder do
     raise ArgumentError,
           "cast callback for #{inspect(path)} must return {:ok, value}, :error, or {:error, reason}, got: #{inspect(other)}"
   end
-
-  def default(@missing, fun) when is_function(fun, 0), do: fun.()
-  def default(@missing, value), do: value
-  def default(value, _default), do: value
 
   def decode(value, type, path, opts), do: decode(value, type, path, opts, nil)
 

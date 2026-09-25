@@ -482,13 +482,21 @@ defmodule JSONCodec do
     end
   end
 
-  defp defaulted_field_ast(present, %{default?: true, default: default}, decoder) do
+  defp defaulted_field_ast(present, %{default?: true, default: default}, _decoder) do
     quote do
-      unquote(decoder).default(unquote(present), unquote(Macro.escape(default)))
+      case unquote(present) do
+        :__json_codec_missing__ -> unquote(default_ast(default))
+        value -> value
+      end
     end
   end
 
   defp defaulted_field_ast(present, _field, _decoder), do: present
+
+  defp default_ast(default) when is_function(default, 0),
+    do: quote(do: unquote(Macro.escape(default)).())
+
+  defp default_ast(default), do: Macro.escape(default)
 
   defp decoded_field_ast(defaulted, %{required: true} = field, path) do
     decode_value_ast(defaulted, field.decode_type, path, field.opts, quote(do: map))
