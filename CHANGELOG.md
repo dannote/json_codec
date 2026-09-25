@@ -4,25 +4,12 @@
 
 ### Breaking changes
 
-- `cast:` callbacks return `{:ok, value}`, `:error`, or `{:error, reason}` instead of the bare value, like `Ecto.Type.cast/1`. `:error` and `{:error, reason}` become a `JSONCodec.Error` for that field with `reason: :invalid_value` and the full path from the root, so `decode/1` and `from_map/1` return `{:error, error}` for invalid input instead of crashing. Exceptions raised inside a cast still propagate. Any other return value raises `ArgumentError`.
-
-  Migrate by wrapping successful results in `{:ok, value}` and returning `:error` for rejected input:
-
-  ```elixir
-  # before
-  def from_milliseconds(ms), do: DateTime.from_unix!(ms, :millisecond)
-  # after
-  def from_milliseconds(ms) when is_integer(ms), do: DateTime.from_unix(ms, :millisecond)
-  def from_milliseconds(_ms), do: :error
-  ```
-
-  Captures of plain functions such as `cast: &String.trim/1` need a local wrapper that returns `{:ok, value}`.
-
-- `decode/1` and `decode!/1` report invalid JSON as a `JSONCodec.Error` with `reason: :invalid_json` and the parser message in `details`, instead of a `Jason.DecodeError`, so callers match one error type.
+- `cast:` callbacks return `{:ok, value}`, `:error`, or `{:error, reason}`, like `Ecto.Type.cast/1`. Rejections become a `JSONCodec.Error` with `reason: :invalid_value`, so `decode/1` and `from_map/1` return errors instead of crashing. Wrap results in `{:ok, value}`; plain captures like `&String.trim/1` need a wrapper.
+- Invalid JSON is a `JSONCodec.Error` with `reason: :invalid_json`, not a `Jason.DecodeError`.
 
 ### Added
 
-- `JSONCodec.Error` has a `details` field, shown in its message, for the reason a cast rejected a value or the JSON parser's message.
+- `JSONCodec.Error.details` holds the cast's rejection reason or the JSON parser message.
 
 ## 0.2.6 - 2026-09-21
 
