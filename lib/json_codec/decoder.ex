@@ -128,22 +128,27 @@ defmodule JSONCodec.Decoder do
   def decode(value, :atom, path, _opts, _source), do: type_error!(path, :atom, value)
 
   def decode(values, {:list, type}, path, opts, source) when is_list(values) do
-    values
-    |> Enum.with_index()
-    |> Enum.map(fn {value, index} ->
-      decode(value, type, append_path(path, index), opts, source)
-    end)
+    decode_list(values, type, opts, source)
+  rescue
+    error in Error ->
+      reraise locate_error(Enum.with_index(values), type, path, opts, source, error),
+              __STACKTRACE__
   end
 
   def decode(value, {:list, type}, path, _opts, _source),
     do: type_error!(path, {:list, type}, value)
 
   def decode(value, {:map, key_type, value_type}, path, opts, source) when is_map(value) do
-    Map.new(value, fn {key, item} ->
-      decoded_key = decode_key(key, key_type, path, opts, source)
-      item = map_value(item, decoded_key, source, opts)
-      {decoded_key, decode(item, value_type, append_path(path, decoded_key), opts, source)}
-    end)
+    decode_map_values(value, key_type, value_type, path, opts, source)
+  rescue
+    error in Error ->
+      entries =
+        Enum.map(value, fn {key, item} ->
+          decoded_key = decode_key(key, key_type, path, opts, source)
+          {map_value(item, decoded_key, source, opts), decoded_key}
+        end)
+
+      reraise locate_error(entries, value_type, path, opts, source, error), __STACKTRACE__
   end
 
   def decode(value, {:map, key_type, value_type}, path, _opts, _source) do
@@ -191,8 +196,32 @@ defmodule JSONCodec.Decoder do
     _error in Error -> :error
   end
 
-  defp append_path([], item), do: [item]
-  defp append_path([head | tail], item), do: [head | append_path(tail, item)]
+  # Elements decode relative to themselves, so successful decodes never build
+  # paths. On failure, `locate_error/6` decodes the elements again to find
+  # which one failed and prefixes its location.
+  defp decode_list([], _type, _opts, _source), do: []
+
+  defp decode_list([value | rest], type, opts, source),
+    do: [decode(value, type, [], opts, source) | decode_list(rest, type, opts, source)]
+
+  defp decode_map_values(map, key_type, value_type, path, opts, source) do
+    Map.new(map, fn {key, item} ->
+      decoded_key = decode_key(key, key_type, path, opts, source)
+      item = map_value(item, decoded_key, source, opts)
+      {decoded_key, decode(item, value_type, [], opts, source)}
+    end)
+  end
+
+  defp locate_error(entries, type, path, opts, source, error) do
+    Enum.find_value(entries, error, fn {value, key} ->
+      try do
+        decode(value, type, [], opts, source)
+        nil
+      rescue
+        element_error in Error -> %{element_error | path: path ++ [key | element_error.path]}
+      end
+    end)
+  end
 
   defp decode_key(key, :string, _path, _opts, _source) when is_binary(key), do: key
   defp decode_key(key, :atom, path, opts, source), do: decode(key, :atom, path, opts, source)

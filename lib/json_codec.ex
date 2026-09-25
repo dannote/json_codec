@@ -631,9 +631,14 @@ defmodule JSONCodec do
   defp module_decode_ast(value, module, path) do
     quote do
       case unquote(value) do
-        %{__struct__: unquote(module)} = struct -> struct
-        map when is_map(map) -> JSONCodec.Decoder.decode_codec(map, unquote(module), unquote(path))
-        other -> JSONCodec.Decoder.type_error!(unquote(path), unquote(module), other)
+        %{__struct__: unquote(module)} = struct ->
+          struct
+
+        map when is_map(map) ->
+          JSONCodec.Decoder.decode_codec(map, unquote(module), unquote(path))
+
+        other ->
+          JSONCodec.Decoder.type_error!(unquote(path), unquote(module), other)
       end
     end
   end
