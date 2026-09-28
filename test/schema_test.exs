@@ -49,6 +49,36 @@ defmodule JSONCodec.SchemaTest do
     @type t :: %__MODULE__{first: Leaf.t(), second: Leaf.t()}
   end
 
+  defmodule Money do
+    @behaviour JSONCodec.Schema
+
+    defstruct [:amount]
+    @type t :: %__MODULE__{amount: String.t()}
+
+    @impl true
+    def json_schema, do: %{"type" => "string", "pattern" => "^\\d+\\.\\d{2}$"}
+  end
+
+  defmodule Undeclared do
+    defstruct [:amount]
+    @type t :: %__MODULE__{amount: String.t()}
+
+    def json_schema, do: %{"type" => "string"}
+  end
+
+  defmodule Invoice do
+    use JSONCodec
+    defstruct [:total, :other]
+    @type t :: %__MODULE__{total: Money.t(), other: Undeclared.t()}
+  end
+
+  test "referenced modules provide schemas through the behaviour" do
+    properties = Invoice.json_schema()["properties"]
+
+    assert properties["total"] == Money.json_schema()
+    assert properties["other"] == %{}
+  end
+
   test "self recursion uses a reference to the containing schema" do
     schema = Node.json_schema()
     assert schema["properties"]["children"]["items"] == %{"$ref" => "#"}
@@ -56,7 +86,7 @@ defmodule JSONCodec.SchemaTest do
     assert schema["properties"]["parent"] == %{"$ref" => "#", "nullable" => true}
     assert schema["required"] == ["name"]
     assert Node.json_schema() == schema
-    assert JSONCodec.Schema.type_schema(Node) == schema
+    assert JSONCodec.Schema.Builder.type_schema(Node) == schema
     assert Jason.decode!(Jason.encode!(schema)) == schema
   end
 

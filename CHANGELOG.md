@@ -8,10 +8,13 @@
 - Invalid JSON is a `JSONCodec.Error` with `reason: :invalid_json`, not a `Jason.DecodeError`.
 - `use JSONCodec` no longer replaces `defstruct`. A field is required unless its type allows `nil` or it has a non-`nil` default, so `defstruct name: nil` with a non-nullable type is now required.
 - Removed `to_map/1` (use `dump/1`, which respects JSON field names) and `schema/0,1` (use `json_schema/0,1`).
+- Removed the `fast_path:` option; the fast clause is always generated. `use JSONCodec` rejects unknown options at compile time.
+- Modules outside JSONCodec provide schemas by implementing the `JSONCodec.Schema` behaviour instead of just exporting `json_schema/0`.
 - `dump/1` returns structs that are not codecs, such as `DateTime`, unchanged for the JSON encoder instead of flattening their fields.
 
 ### Changed
 
+- Parse with Elixir's `JSON` module on Elixir 1.18+, falling back to Jason, which becomes optional.
 - Generated decoders specialize more at compile time: nested codecs are called directly, atom policies are resolved when the codec compiles, defaults are inlined, and list and map value error paths are built only on failure. On the program facts benchmark this halves BEAM reductions, cuts memory by a third, and brings decoding from about 1.34× to about 1.1× the time of handwritten code.
 - Unknown `atom:` policies are compile errors instead of failing on the first decoded atom.
 - Defaults bypass `cast:`, type decoding, and `transform:`; a missing optional field takes its struct default as is.

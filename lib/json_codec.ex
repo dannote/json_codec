@@ -16,6 +16,7 @@ defmodule JSONCodec do
 
     quote bind_quoted: [opts: opts] do
       import JSONCodec, only: [codec: 2, computed: 2]
+      @behaviour JSONCodec.Schema
 
       Module.register_attribute(__MODULE__, :json_codec_options, accumulate: false)
       Module.register_attribute(__MODULE__, :json_codec_field_options, accumulate: true)
@@ -159,7 +160,8 @@ defmodule JSONCodec do
       end
 
       @doc "Returns a JSON Schema-compatible schema map."
-      def json_schema, do: JSONCodec.Schema.object(__MODULE__)
+      @impl JSONCodec.Schema
+      def json_schema, do: JSONCodec.Schema.Builder.object(__MODULE__)
     end
   end
 
@@ -213,7 +215,7 @@ defmodule JSONCodec do
   def dump(value), do: value
 
   @doc "Returns a JSON Schema-compatible schema map for a JSONCodec module."
-  def json_schema(module), do: JSONCodec.Schema.object(module)
+  def json_schema(module), do: JSONCodec.Schema.Builder.object(module)
 
   defp build_fields(module, struct_fields, type_fields, field_options, codec_options, env) do
     defaults = struct_fields

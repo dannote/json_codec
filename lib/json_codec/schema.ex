@@ -1,29 +1,20 @@
 defmodule JSONCodec.Schema do
-  @moduledoc false
+  @moduledoc """
+  Behaviour for modules that provide their own JSON Schema.
 
-  def object(module), do: type_schema(module)
+  Every `JSONCodec` module implements it. Other modules implement it to give
+  codec fields that reference them a schema:
 
-  def type_schema(type) do
-    JSONSpec.from_type(type, resolve: &resolve/1, nullable: :legacy)
-  end
+      defmodule Money do
+        @behaviour JSONCodec.Schema
 
-  defp resolve(module) do
-    Code.ensure_loaded?(module)
+        @impl true
+        def json_schema, do: %{"type" => "string", "pattern" => "^\\\\d+\\\\.\\\\d{2}$"}
+      end
 
-    cond do
-      function_exported?(module, :__json_codec_fields__, 0) ->
-        fields =
-          Enum.map(module.__json_codec_fields__(), fn field ->
-            %{name: field.json, type: field.type, required: field.required}
-          end)
+  Referenced modules that implement neither get an empty schema.
+  """
 
-        {:object, fields}
-
-      function_exported?(module, :json_schema, 0) ->
-        {:schema, module.json_schema()}
-
-      true ->
-        {:schema, %{}}
-    end
-  end
+  @doc "Returns a JSON Schema-compatible map describing this module's JSON form."
+  @callback json_schema() :: map()
 end
