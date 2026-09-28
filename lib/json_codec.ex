@@ -82,10 +82,10 @@ defmodule JSONCodec do
         :ok
 
       {:fast_path, _value} ->
-        raise CompileError,
-          file: env.file,
-          line: env.line,
-          description: "JSONCodec no longer takes :fast_path; the fast clause is always generated"
+        IO.warn(
+          ":fast_path is deprecated and ignored; JSONCodec always generates the fast clause",
+          Macro.Env.stacktrace(env)
+        )
 
       option ->
         raise CompileError,

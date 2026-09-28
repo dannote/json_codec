@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.1 - 2026-09-28
+
+### Fixed
+
+- Accept the removed `fast_path:` option with a deprecation warning instead of a compile error. Packages that allow json_codec 0.3 through a loose requirement, such as RustQ's `~> 0.1`, failed to compile. The option will be rejected again in 0.4.0.
+
 ## 0.3.0 - 2026-09-28
 
 ### Breaking changes
@@ -8,7 +14,7 @@
 - Invalid JSON is a `JSONCodec.Error` with `reason: :invalid_json`, not a `Jason.DecodeError`.
 - `use JSONCodec` no longer replaces `defstruct`. A field is required unless its type allows `nil` or it has a non-`nil` default, so `defstruct name: nil` with a non-nullable type is now required.
 - Removed `to_map/1` (use `dump/1`, which respects JSON field names) and the `json_schema/0,1` aliases (use `schema/0,1`).
-- Removed the `fast_path:` option; the fast clause is always generated. `use JSONCodec` rejects unknown options at compile time.
+- The fast clause is always generated and the `fast_path:` option has no effect. `use JSONCodec` rejects unknown options at compile time.
 - Modules outside JSONCodec provide schemas by implementing the `JSONCodec.Schema` behaviour instead of just exporting `json_schema/0`; the callback is `schema/0`.
 - `dump/1` returns structs that are not codecs, such as `DateTime`, unchanged for the JSON encoder instead of flattening their fields.
 

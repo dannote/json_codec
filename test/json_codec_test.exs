@@ -627,16 +627,24 @@ defmodule JSONCodecTest do
              OptionalCast.from_map(%{"expires_at" => 0, "count" => 3})
   end
 
-  test "rejects the removed fast_path option and unknown options at compile time" do
-    assert_raise CompileError, ~r/no longer takes :fast_path/, fn ->
-      Code.compile_string("""
-      defmodule FastPathOption do
-        use JSONCodec, fast_path: :json
-        defstruct [:name]
-        @type t :: %__MODULE__{name: String.t()}
-      end
-      """)
-    end
+  test "warns about the deprecated fast_path option and rejects unknown options" do
+    warning =
+      ExUnit.CaptureIO.capture_io(:stderr, fn ->
+        [{module, _binary}] =
+          Code.compile_string("""
+          defmodule FastPathOption do
+            use JSONCodec, fast_path: :json
+            defstruct [:name]
+            @type t :: %__MODULE__{name: String.t()}
+          end
+          """)
+
+        send(self(), {:compiled, module})
+      end)
+
+    assert warning =~ ":fast_path is deprecated and ignored"
+    assert_received {:compiled, module}
+    assert {:ok, %{name: "x"}} = module.from_map(%{"name" => "x"})
 
     assert_raise CompileError, ~r/invalid JSONCodec option \{:casing, :camel\}/, fn ->
       Code.compile_string("""
