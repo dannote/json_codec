@@ -4,15 +4,14 @@
 
 Compile-time generated codecs for JSON-shaped Elixir structs.
 
-Agent instructions for consumers are available at <https://github.com/dannote/json_codec/blob/main/SKILL.md>. If your coding agent supports skills, load that file before adding JSON decoding code that depends on JSONCodec.
+Agent instructions for consumers are available at <https://github.com/dannote/json_codec/blob/master/SKILL.md>. If your coding agent supports skills, load that file before adding JSON decoding code that depends on JSONCodec.
 
-`JSONCodec` is **not** another JSON parser. It uses [`Jason`](https://hex.pm/packages/jason) for parsing and focuses on the annoying part that tends to be rewritten in every Elixir project: converting decoded string-keyed JSON maps into nested structs with aliases, defaults, computed fields, explicit atom policy, and schema export.
+`JSONCodec` is **not** another JSON parser. It parses with Elixir's `JSON` module (or [`Jason`](https://hex.pm/packages/jason) before Elixir 1.18) and focuses on the annoying part that tends to be rewritten in every Elixir project: converting decoded string-keyed JSON maps into nested structs with aliases, defaults, computed fields, explicit atom policy, and schema export.
 
 `JSONCodec` uses normal Elixir declarations as the source of truth:
 
 - `defstruct` for fields and defaults
-- `@type t` nullability for optional fields: a field is required unless its type allows `nil` or it has a non-`nil` default
-- `@type t` for field types
+- `@type t` for field types; a field is required unless its type allows `nil` or it has a non-`nil` default
 - `codec/2` only for JSON-specific field metadata
 
 ```elixir
@@ -73,7 +72,7 @@ JSONCodec.schema(FunctionID)
 
 Because this is not trying to compete with JSON parsers. It sits after parsing.
 
-Most Elixir JSON code starts with `Jason.decode!/1`, then hand-rolls `from_map!/1` functions forever:
+Most Elixir JSON code starts with `JSON.decode!/1` or `Jason.decode!/1`, then hand-rolls `from_map!/1` functions forever:
 
 ```elixir
 def from_map!(%{"from" => from, "to" => to} = map) do
@@ -98,7 +97,7 @@ end
 | `SimpleSchema` | JSON validation + struct | Yes | Yes | Yes | custom callbacks | limited | validation pipeline |
 | **JSONCodec** | generated JSON-shaped struct codecs | **Yes** | **Yes** | **Yes** | **Yes** | **explicit per field** | **near-handwritten decode** |
 
-Use `Jason` for parsing. Use `Tarams`/`Ecto` for Phoenix params. Use a validation framework when rich validation is the main goal. Use `JSONCodec` when you own the struct shape and want fast, boring, explicit map-to-struct codecs.
+Use `JSON` or `Jason` for parsing. Use `Tarams`/`Ecto` for Phoenix params. Use a validation framework when rich validation is the main goal. Use `JSONCodec` when you own the struct shape and want fast, boring, explicit map-to-struct codecs.
 
 ## Codec metadata
 
@@ -131,12 +130,10 @@ JSONCodec.dump(manifest)
 
 Structs that are not codecs, such as `DateTime`, are returned unchanged so the JSON encoder serializes them.
 
-Each codec gets an optimized first `from_map!/1` clause that matches decoded JSON maps with string keys. If it does not match, `JSONCodec` falls back to the full generic decoder, including atom-key lookup and detailed missing-field handling.
-
 Use `codec/2` for exceptions and special behavior:
 
 ```elixir
-codec :not_found, as: "not_found"
+codec :id, as: "_id"
 codec :variable_names, atom: {:enum, [:acc, :result]}
 codec :created_at, as: "createdAtMs", cast: :from_milliseconds
 codec :name, transform: :trim_name
@@ -205,6 +202,13 @@ codec :name, transform: &String.trim/1
 codec :icons, values: &MyTransforms.icon_value/3
 ```
 
+Atom policy is explicit. `atom()` fields accept only atoms that already exist (`:existing`, the default) or a fixed list; unknown policies are compile errors:
+
+```elixir
+codec :status, atom: :existing
+codec :variable_name, atom: {:enum, [:acc, :result]}
+```
+
 Use `strict: true` when `from_map/1` should accept only JSON/string-keyed maps and reject atom-key fallback:
 
 ```elixir
@@ -251,13 +255,17 @@ codec :icons, decode_values: &MyTransforms.decode_icon/3,
               values_source: &MyTransforms.icon_defaults/1
 ```
 
-Atom policy is explicit:
+## Errors
+
+`decode/1` and `from_map/1` return `{:ok, struct}` or `{:error, %JSONCodec.Error{}}`; the bang variants raise it. Every failure has the same shape:
 
 ```elixir
-codec :status, atom: :existing
-codec :variable_name, atom: {:enum, [:acc, :result]}
+{:error, %JSONCodec.Error{path: [:data_flows, 3, :to, :type], reason: :invalid_type, expected: {:enum, [:argument, :return, :variable]}, got: "param"}}
 ```
 
+- `path` names the field from the root, through nested structs, list indexes, and map keys.
+- `reason` is `:missing_required_field`, `:invalid_type`, `:invalid_value` (a cast rejected the value), or `:invalid_json`.
+- `details` holds a cast's rejection reason or the JSON parser's message.
 
 ## Supported type shapes
 
@@ -274,6 +282,7 @@ Read from `@type t`:
 - `any()` / `term()`
 - `type | nil`
 - atom unions like `:active | :inactive`
+- mixed unions like `String.t() | integer()`
 - `[type]`
 - `%{String.t() => value_type}`
 - another `JSONCodec` module via `Other.t()`
@@ -285,6 +294,17 @@ Each codec module exports a JSON Schema-compatible map:
 ```elixir
 FunctionID.schema()
 JSONCodec.schema(FunctionID)
+```
+
+A field typed as a module that is not a codec gets that module's schema if it implements the `JSONCodec.Schema` behaviour:
+
+```elixir
+defmodule Money do
+  @behaviour JSONCodec.Schema
+
+  @impl true
+  def schema, do: %{"type" => "string", "pattern" => "^\\d+\\.\\d{2}$"}
+end
 ```
 
 This is intentionally compatible with the direction of `JSONSpec`: codecs are the fast construction layer; schema validation can remain a separate layer.
@@ -322,6 +342,8 @@ Interpretation:
 ```elixir
 {:json_codec, "~> 0.3"}
 ```
+
+On Elixir 1.18+ no JSON dependency is needed. On earlier versions, add `{:jason, "~> 1.4"}`.
 
 ## Development
 

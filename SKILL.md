@@ -1,6 +1,6 @@
 ---
 name: json-codec-consumer
-description: Use JSONCodec correctly in Elixir projects when decoding JSON-shaped maps/strings into structs at HTTP, config, file, event, provider, CLI, or protocol boundaries. Prefer this over Jason.decode! + hand-written map parsing.
+description: Use JSONCodec correctly in Elixir projects when decoding JSON-shaped maps/strings into structs at HTTP, config, file, event, provider, CLI, or protocol boundaries. Prefer this over JSON.decode!/Jason.decode! + hand-written map parsing.
 ---
 
 # JSONCodec Consumer Rules
@@ -24,7 +24,7 @@ Common examples:
 Do **not** hand-roll JSON boundary parsing with:
 
 ```elixir
-Jason.decode!(json)
+JSON.decode!(json)
 Map.get(map, "field")
 %{field: map["field"]}
 ```
@@ -259,7 +259,7 @@ Map-field callbacks:
 
 ## Do not
 
-- Do not use `Jason.decode!` followed by ad hoc `Map.get` chains.
+- Do not use `JSON.decode!` or `Jason.decode!` followed by ad hoc `Map.get` chains.
 - Do not support mixed atom/string keys at external JSON boundaries.
 - Do not write redundant `as:` mappings for normal camelCase/snake_case conversion.
 - Do not use `transform:` for wire-type conversion; use `cast:`.
