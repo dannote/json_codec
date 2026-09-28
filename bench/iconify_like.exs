@@ -34,7 +34,7 @@ defmodule Bench.IconifyLike.Hand.Set do
 end
 
 defmodule Bench.IconifyLike.Codec.Icon do
-  use JSONCodec, case: :camel, fast_path: :json
+  use JSONCodec, case: :camel
 
   defstruct [:name, :body, width: 16, height: 16, left: 0, top: 0, rotate: 0, h_flip: false, v_flip: false]
 
@@ -57,7 +57,7 @@ defmodule Bench.IconifyLike.Codec.Icon do
 end
 
 defmodule Bench.IconifyLike.Codec.Set do
-  use JSONCodec, case: :camel, fast_path: :json
+  use JSONCodec, case: :camel
 
   defstruct [:prefix, icons: %{}, width: 16, height: 16, left: 0, top: 0]
 

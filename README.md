@@ -106,7 +106,7 @@ Most fields need no JSONCodec-specific declaration. Defaults come from `defstruc
 
 ```elixir
 defmodule PackageManifest do
-  use JSONCodec, case: :camel, fast_path: :json
+  use JSONCodec, case: :camel
 
   defstruct [:name, :version, dev_dependencies: %{}]
 
@@ -131,7 +131,7 @@ JSONCodec.dump(manifest)
 
 Structs that are not codecs, such as `DateTime`, are returned unchanged so the JSON encoder serializes them.
 
-`fast_path: :json` generates an optimized first `from_map!/1` clause for normal `Jason`-decoded JSON maps with string keys. If that fast string-key clause does not match, `JSONCodec` falls back to the full generic decoder, including atom-key lookup and detailed missing-field handling.
+Each codec gets an optimized first `from_map!/1` clause that matches decoded JSON maps with string keys. If it does not match, `JSONCodec` falls back to the full generic decoder, including atom-key lookup and detailed missing-field handling.
 
 Use `codec/2` for exceptions and special behavior:
 
@@ -152,7 +152,7 @@ Use `cast:` to convert a wire representation into the declared Elixir type befor
 
 ```elixir
 defmodule JobPayload do
-  use JSONCodec, case: :camel, fast_path: :json
+  use JSONCodec, case: :camel
 
   defstruct [:id, :created_at]
 
@@ -209,7 +209,7 @@ Use `strict: true` when `from_map/1` should accept only JSON/string-keyed maps a
 
 ```elixir
 defmodule StrictPayload do
-  use JSONCodec, case: :camel, strict: true, fast_path: :json
+  use JSONCodec, case: :camel, strict: true
 
   defstruct [:job_id]
   @type t :: %__MODULE__{job_id: String.t()}

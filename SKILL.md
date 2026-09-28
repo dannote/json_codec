@@ -47,7 +47,7 @@ Boundary struct:
 
 ```elixir
 defmodule ImportSummary do
-  use JSONCodec, strict: true, fast_path: :json
+  use JSONCodec, strict: true
 
   defstruct [:name, :item_count, :enabled]
 
@@ -77,7 +77,7 @@ If JSON uses camelCase and Elixir uses snake_case, use JSONCodec's built-in casi
 
 ```elixir
 defmodule JobEvent do
-  use JSONCodec, case: :camel, strict: true, fast_path: :json
+  use JSONCodec, case: :camel, strict: true
 
   defstruct [:job_id, :queued_at, :retry_count]
 
@@ -107,7 +107,7 @@ Use `codec(:field, as: ...)` only for field names that cannot be derived by case
 
 ```elixir
 defmodule ClaimsEnvelope do
-  use JSONCodec, strict: true, fast_path: :json
+  use JSONCodec, strict: true
 
   defstruct [:standard_claims, :custom_claims]
 
@@ -134,7 +134,7 @@ Boundary struct:
 
 ```elixir
 defmodule JobPayload do
-  use JSONCodec, case: :camel, strict: true, fast_path: :json
+  use JSONCodec, case: :camel, strict: true
 
   defstruct [:id, :created_at]
 
@@ -177,7 +177,7 @@ Example transform:
 
 ```elixir
 defmodule UserPayload do
-  use JSONCodec, strict: true, fast_path: :json
+  use JSONCodec, strict: true
 
   defstruct [:name]
 
@@ -196,7 +196,7 @@ Do not use `transform:` when the raw JSON value is not already decodable as the 
 `JSONCodec.from_map/1` normally supports generic map decoding. If the input is supposed to be decoded JSON from an external boundary, use `strict: true`:
 
 ```elixir
-use JSONCodec, strict: true, fast_path: :json
+use JSONCodec, strict: true
 ```
 
 This rejects atom-key maps and prevents loose mixed atom/string boundary contracts.
@@ -220,7 +220,7 @@ Use nested JSONCodec structs instead of manual recursive parsing:
 
 ```elixir
 defmodule PackageFile do
-  use JSONCodec, strict: true, fast_path: :json
+  use JSONCodec, strict: true
 
   defstruct [:path, :bytes]
 
@@ -228,7 +228,7 @@ defmodule PackageFile do
 end
 
 defmodule PackageManifest do
-  use JSONCodec, case: :camel, strict: true, fast_path: :json
+  use JSONCodec, case: :camel, strict: true
 
   defstruct [:name, files: []]
 
@@ -243,7 +243,7 @@ For maps with structured values, use typed map fields:
 
 ```elixir
 defmodule Catalog do
-  use JSONCodec, strict: true, fast_path: :json
+  use JSONCodec, strict: true
 
   defstruct entries: %{}
 

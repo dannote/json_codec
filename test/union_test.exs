@@ -17,7 +17,7 @@ defmodule JSONCodec.UnionTest do
   end
 
   defmodule Fast do
-    use JSONCodec, strict: true, fast_path: :json
+    use JSONCodec, strict: true
     defstruct [:value, :nullable, :status, :mixed, :flag, items: [], values: %{}]
 
     @type t :: %__MODULE__{

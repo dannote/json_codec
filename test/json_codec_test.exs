@@ -68,7 +68,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule FastPackageManifest do
-    use JSONCodec, case: :camel, fast_path: :json
+    use JSONCodec, case: :camel
 
     defstruct [:name, :version, dev_dependencies: %{}]
 
@@ -80,7 +80,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule IconValue do
-    use JSONCodec, fast_path: :json
+    use JSONCodec
 
     defstruct [:name, :body, width: 16]
 
@@ -88,7 +88,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule IconSet do
-    use JSONCodec, fast_path: :json
+    use JSONCodec
 
     defstruct [:prefix, icons: %{}]
 
@@ -101,7 +101,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule DirectIconSet do
-    use JSONCodec, fast_path: :json
+    use JSONCodec
 
     defstruct [:prefix, icons: %{}]
 
@@ -121,7 +121,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule StrictChild do
-    use JSONCodec, strict: true, fast_path: :json
+    use JSONCodec, strict: true
 
     defstruct [:name]
 
@@ -129,7 +129,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule StrictParent do
-    use JSONCodec, strict: true, fast_path: :json
+    use JSONCodec, strict: true
 
     defstruct [:child]
 
@@ -142,7 +142,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule ModuleContainer do
-    use JSONCodec, fast_path: :json
+    use JSONCodec
 
     defstruct [
       :child,
@@ -171,7 +171,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule CastOnlyPayload do
-    use JSONCodec, strict: true, fast_path: :json
+    use JSONCodec, strict: true
 
     defstruct [:wrapped]
 
@@ -183,7 +183,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule CastEvent do
-    use JSONCodec, case: :camel, fast_path: :json
+    use JSONCodec, case: :camel
 
     defstruct [:name, :created_at, :normalized_name]
 
@@ -202,7 +202,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule GuardedDateTimeCast do
-    use JSONCodec, strict: true, fast_path: :json
+    use JSONCodec, strict: true
 
     defstruct [:expires_at]
 
@@ -218,7 +218,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule AttributeOptions do
-    use JSONCodec, strict: true, fast_path: :json
+    use JSONCodec, strict: true
 
     @states [:active, :inactive]
 
@@ -229,7 +229,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule OptionalCast do
-    use JSONCodec, strict: true, fast_path: :json
+    use JSONCodec, strict: true
 
     defstruct [:expires_at, count: 1]
     @type t :: %__MODULE__{expires_at: DateTime.t() | nil, count: pos_integer()}
@@ -243,7 +243,7 @@ defmodule JSONCodecTest do
   end
 
   defmodule BadCastReturn do
-    use JSONCodec, strict: true, fast_path: :json
+    use JSONCodec, strict: true
 
     defstruct [:value]
     @type t :: %__MODULE__{value: String.t()}
@@ -254,14 +254,14 @@ defmodule JSONCodecTest do
   end
 
   defmodule CastHolder do
-    use JSONCodec, strict: true, fast_path: :json
+    use JSONCodec, strict: true
 
     defstruct [:events]
     @type t :: %__MODULE__{events: [GuardedDateTimeCast.t()]}
   end
 
   defmodule StrictPackageManifest do
-    use JSONCodec, case: :camel, strict: true, fast_path: :json
+    use JSONCodec, case: :camel, strict: true
 
     defstruct [:name, :version, dev_dependencies: %{}]
 
@@ -345,7 +345,7 @@ defmodule JSONCodecTest do
 
     Code.compile_string("""
     defmodule #{inspect(parent)} do
-      use JSONCodec, fast_path: :json
+      use JSONCodec
       defstruct [:child]
       @type t :: %__MODULE__{child: #{inspect(child)}.t()}
     end
@@ -353,7 +353,7 @@ defmodule JSONCodecTest do
 
     Code.compile_string("""
     defmodule #{inspect(child)} do
-      use JSONCodec, fast_path: :json
+      use JSONCodec
       defstruct [:name]
       @type t :: %__MODULE__{name: String.t()}
     end
@@ -625,6 +625,28 @@ defmodule JSONCodecTest do
 
     assert {:ok, %OptionalCast{expires_at: %DateTime{}, count: 6}} =
              OptionalCast.from_map(%{"expires_at" => 0, "count" => 3})
+  end
+
+  test "rejects the removed fast_path option and unknown options at compile time" do
+    assert_raise CompileError, ~r/no longer takes :fast_path/, fn ->
+      Code.compile_string("""
+      defmodule FastPathOption do
+        use JSONCodec, fast_path: :json
+        defstruct [:name]
+        @type t :: %__MODULE__{name: String.t()}
+      end
+      """)
+    end
+
+    assert_raise CompileError, ~r/invalid JSONCodec option \{:casing, :camel\}/, fn ->
+      Code.compile_string("""
+      defmodule UnknownOption do
+        use JSONCodec, casing: :camel
+        defstruct [:name]
+        @type t :: %__MODULE__{name: String.t()}
+      end
+      """)
+    end
   end
 
   test "rejects unknown atom policies at compile time" do

@@ -49,7 +49,10 @@ defmodule JSONCodec do
 
   defp before_compile_context(env) do
     module = env.module
-    codec_options = Module.get_attribute(module, :json_codec_options) || []
+
+    codec_options =
+      validate_options!(Module.get_attribute(module, :json_codec_options) || [], env)
+
     struct_fields = struct_defaults!(env)
     field_options = field_options(module)
     computed = computed_fields(module)
@@ -61,11 +64,37 @@ defmodule JSONCodec do
     %{
       fields: fields,
       build_pairs: Enum.map(fields, &field_pair_ast(&1, generic_raw_strategy(strict?))),
-      fast_build_pairs: fast_path_field_pairs(fields, codec_options),
-      fast_pattern: fast_path_pattern(fields, codec_options),
+      fast_build_pairs: fast_path_field_pairs(fields),
+      fast_pattern: fast_path_pattern(fields),
       computed_result: computed_result_ast(computed),
       strict?: strict?
     }
+  end
+
+  defp validate_options!(opts, env) do
+    Enum.each(opts, fn
+      {:case, case} when case in [:snake, :camel] ->
+        :ok
+
+      {:strict, strict} when is_boolean(strict) ->
+        :ok
+
+      {:fast_path, _value} ->
+        raise CompileError,
+          file: env.file,
+          line: env.line,
+          description: "JSONCodec no longer takes :fast_path; the fast clause is always generated"
+
+      option ->
+        raise CompileError,
+          file: env.file,
+          line: env.line,
+          description:
+            "invalid JSONCodec option #{inspect(option)}. " <>
+              "Expected case: :snake | :camel or strict: boolean"
+    end)
+
+    opts
   end
 
   defp field_options(module) do
@@ -399,19 +428,19 @@ defmodule JSONCodec do
   defp generic_raw_strategy(true), do: :json
   defp generic_raw_strategy(false), do: :generic
 
-  defp fast_path_field_pairs(fields, opts) do
+  defp fast_path_field_pairs(fields) do
     required = required_fields(fields)
 
-    if Keyword.get(opts, :fast_path) == :json and required != [] do
+    if required != [] do
       required_vars = Map.new(required, &{&1.name, Macro.var(&1.name, nil)})
       Enum.map(fields, &field_pair_ast(&1, fast_path_raw(&1, required_vars)))
     end
   end
 
-  defp fast_path_pattern(fields, opts) do
+  defp fast_path_pattern(fields) do
     required = required_fields(fields)
 
-    if Keyword.get(opts, :fast_path) == :json and required != [] do
+    if required != [] do
       {:%{}, [], Enum.map(required, &{&1.json, Macro.var(&1.name, nil)})}
     end
   end
