@@ -20,7 +20,7 @@ defmodule JSONCodec.Schema.Builder do
         {:object, fields}
 
       JSONCodec.Schema in behaviours(module) ->
-        {:schema, module.json_schema()}
+        {:schema, module.schema()}
 
       true ->
         {:schema, %{}}

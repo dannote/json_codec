@@ -57,7 +57,7 @@ FunctionID.decode(json)
 FunctionID.from_map!(map)
 FunctionID.from_map(map)
 FunctionID.dump(struct)
-FunctionID.json_schema()
+FunctionID.schema()
 ```
 
 Top-level helpers are also available:
@@ -66,7 +66,7 @@ Top-level helpers are also available:
 JSONCodec.decode!(json, FunctionID)
 JSONCodec.from_map!(map, FunctionID)
 JSONCodec.dump(struct)
-JSONCodec.json_schema(FunctionID)
+JSONCodec.schema(FunctionID)
 ```
 
 ## Why another JSON library?
@@ -283,8 +283,8 @@ Read from `@type t`:
 Each codec module exports a JSON Schema-compatible map:
 
 ```elixir
-FunctionID.json_schema()
-JSONCodec.json_schema(FunctionID)
+FunctionID.schema()
+JSONCodec.schema(FunctionID)
 ```
 
 This is intentionally compatible with the direction of `JSONSpec`: codecs are the fast construction layer; schema validation can remain a separate layer.

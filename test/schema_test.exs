@@ -58,14 +58,14 @@ defmodule JSONCodec.SchemaTest do
     @type t :: %__MODULE__{amount: String.t()}
 
     @impl true
-    def json_schema, do: %{"type" => "string", "pattern" => "^\\d+\\.\\d{2}$"}
+    def schema, do: %{"type" => "string", "pattern" => "^\\d+\\.\\d{2}$"}
   end
 
   defmodule Undeclared do
     defstruct [:amount]
     @type t :: %__MODULE__{amount: String.t()}
 
-    def json_schema, do: %{"type" => "string"}
+    def schema, do: %{"type" => "string"}
   end
 
   defmodule Invoice do
@@ -75,33 +75,33 @@ defmodule JSONCodec.SchemaTest do
   end
 
   test "referenced modules provide schemas through the behaviour" do
-    properties = Invoice.json_schema()["properties"]
+    properties = Invoice.schema()["properties"]
 
-    assert properties["total"] == Money.json_schema()
+    assert properties["total"] == Money.schema()
     assert properties["other"] == %{}
   end
 
   test "self recursion uses a reference to the containing schema" do
-    schema = Node.json_schema()
+    schema = Node.schema()
     assert schema["properties"]["children"]["items"] == %{"$ref" => "#"}
     assert schema["properties"]["indexed"]["additionalProperties"] == %{"$ref" => "#"}
     assert schema["properties"]["parent"] == %{"$ref" => "#", "nullable" => true}
     assert schema["required"] == ["name"]
-    assert Node.json_schema() == schema
+    assert Node.schema() == schema
     assert Builder.type_schema(Node) == schema
     assert Jason.decode!(Jason.encode!(schema)) == schema
   end
 
   test "mutual recursion terminates regardless of which module is the root" do
-    assert Left.json_schema()["properties"]["right"]["properties"]["left"] ==
+    assert Left.schema()["properties"]["right"]["properties"]["left"] ==
              %{"$ref" => "#", "nullable" => true}
 
-    assert Right.json_schema()["properties"]["left"]["properties"]["right"] ==
+    assert Right.schema()["properties"]["left"]["properties"]["right"] ==
              %{"$ref" => "#", "nullable" => true}
   end
 
   test "nested recursion points to the correct array and map schemas" do
-    schema = Forest.json_schema()
+    schema = Forest.schema()
     nodes = schema["properties"]["nodes"]["items"]
     indexed = schema["properties"]["indexed"]["additionalProperties"]
     assert nodes["properties"]["children"]["items"]["$ref"] == "#/properties/nodes/items"
@@ -114,7 +114,7 @@ defmodule JSONCodec.SchemaTest do
   end
 
   test "reference paths escape JSON pointer tokens and URI fragments" do
-    schema = Forest.json_schema()
+    schema = Forest.schema()
     node = schema["properties"]["a/b~c #%🦆"]
     reference = node["properties"]["children"]["items"]["$ref"]
     assert reference == "#/properties/a~1b~0c%20%23%25%F0%9F%A6%86"
@@ -122,13 +122,13 @@ defmodule JSONCodec.SchemaTest do
   end
 
   test "repeated acyclic modules stay inline and retain the existing schema shape" do
-    schema = Pair.json_schema()
+    schema = Pair.schema()
 
     assert schema == %{
              "type" => "object",
              "additionalProperties" => false,
              "required" => ["first", "second"],
-             "properties" => %{"first" => Leaf.json_schema(), "second" => Leaf.json_schema()}
+             "properties" => %{"first" => Leaf.schema(), "second" => Leaf.schema()}
            }
   end
 

@@ -700,8 +700,8 @@ defmodule JSONCodecTest do
              "type" => "object",
              "required" => ["name"],
              "properties" => %{"devDependencies" => %{"type" => "object"}}
-           } = PackageManifest.json_schema()
+           } = PackageManifest.schema()
 
-    assert JSONCodec.json_schema(PackageManifest) == PackageManifest.json_schema()
+    assert JSONCodec.schema(PackageManifest) == PackageManifest.schema()
   end
 end
