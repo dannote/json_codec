@@ -202,7 +202,9 @@ Benchee.run(
     "JSONCodec map->struct" => fn -> Bench.Codec.Manifest.from_map!(decoded) end,
     "Jason.decode only" => fn -> Jason.decode!(json) end,
     "hand Jason+struct" => fn -> json |> Jason.decode!() |> Bench.Hand.Manifest.from_map!() end,
-    "JSONCodec Jason+struct" => fn -> Bench.Codec.Manifest.decode!(json) end,
+    "JSON.decode only" => fn -> JSON.decode!(json) end,
+    "hand JSON+struct" => fn -> json |> JSON.decode!() |> Bench.Hand.Manifest.from_map!() end,
+    "JSONCodec decode!" => fn -> Bench.Codec.Manifest.decode!(json) end,
     "Spectral pre_decoded" => fn ->
       Spectral.decode!(decoded, Bench.Spectral.Manifest, :t, :json, [:pre_decoded])
     end,

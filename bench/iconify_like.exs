@@ -119,7 +119,9 @@ Benchee.run(
     "JSONCodec map->struct" => fn -> Bench.IconifyLike.Codec.Set.from_map!(decoded) end,
     "Jason.decode only" => fn -> Jason.decode!(json) end,
     "hand Jason+struct" => fn -> json |> Jason.decode!() |> Bench.IconifyLike.Hand.Set.from_map!() end,
-    "JSONCodec Jason+struct" => fn -> Bench.IconifyLike.Codec.Set.decode!(json) end
+    "JSON.decode only" => fn -> JSON.decode!(json) end,
+    "hand JSON+struct" => fn -> json |> JSON.decode!() |> Bench.IconifyLike.Hand.Set.from_map!() end,
+    "JSONCodec decode!" => fn -> Bench.IconifyLike.Codec.Set.decode!(json) end
   },
   time: 5,
   warmup: 2,

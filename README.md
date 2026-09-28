@@ -297,28 +297,30 @@ Run:
 MIX_ENV=dev mix run bench/program_facts_like.exs
 ```
 
-Machine used for this snapshot: Apple M5, Elixir 1.20, Erlang/OTP 29, with other load on the machine, so compare the ratios rather than absolute times. Payload: `142 KB`, 250 nested `data_flow` records.
+Machine used for this snapshot: Apple M5, Elixir 1.20, Erlang/OTP 29. Payload: `142 KB`, 250 nested `data_flow` records.
 
 | Case | avg | median | memory |
 |---|---:|---:|---:|
-| handwritten map→struct | 263 µs | 257 µs | 0.25 MB |
-| `JSONCodec` map→struct | 286 µs | 290 µs | 0.35 MB |
-| `Jason.decode` only | 761 µs | 753 µs | 1.10 MB |
-| `Spectral` pre-decoded | 874 µs | 850 µs | 3.23 MB |
-| `JSONCodec` `Jason`+struct | 1031 µs | 997 µs | 1.45 MB |
-| handwritten `Jason`+struct | 1095 µs | 1088 µs | 1.34 MB |
-| `Spectral` native JSON | 1687 µs | 1575 µs | 4.06 MB |
+| handwritten map→struct | 235 µs | 228 µs | 0.25 MB |
+| `JSONCodec` map→struct | 251 µs | 264 µs | 0.35 MB |
+| `JSON.decode` only | 500 µs | 499 µs | 0.83 MB |
+| `Jason.decode` only | 730 µs | 699 µs | 1.10 MB |
+| `JSONCodec.decode!` | 869 µs | 870 µs | 1.18 MB |
+| handwritten `JSON`+struct | 912 µs | 860 µs | 1.07 MB |
+| handwritten `Jason`+struct | 1087 µs | 1069 µs | 1.34 MB |
+| `Spectral` pre-decoded | 1273 µs | 1208 µs | 3.23 MB |
+| `Spectral` native JSON | 1613 µs | 1441 µs | 4.06 MB |
 
 Interpretation:
 
-- On decoded maps, `JSONCodec` is about 1.1× the time of this handwritten decoder, doing fewer BEAM reductions but allocating about 1.4× the memory.
-- End-to-end, JSON parsing dominates, and `JSONCodec.decode!/1` is within noise of handwritten `Jason`+struct and about 1.6× faster than `Spectral` native JSON on this shape.
-- On map-heavy Iconify-like data (`mix run bench/iconify_like.exs`), `JSONCodec` with `decode_values:` and `values_source:` is tied with the handwritten decoder in time and uses slightly less memory.
+- On decoded maps, `JSONCodec` is within about 1.1× of this handwritten decoder, doing fewer BEAM reductions but allocating about 1.4× the memory.
+- End-to-end, parsing dominates. `JSONCodec.decode!/1` parses with Elixir's `JSON` module and is on par with handwritten `JSON`+struct, faster than handwritten `Jason`+struct, and about 1.9× faster than `Spectral` native JSON on this shape.
+- On map-heavy Iconify-like data (`mix run bench/iconify_like.exs`), `JSONCodec` with `decode_values:` and `values_source:` is tied with the handwritten decoder and uses slightly less memory.
 
 ## Installation
 
 ```elixir
-{:json_codec, "~> 0.1.1"}
+{:json_codec, "~> 0.3"}
 ```
 
 ## Development

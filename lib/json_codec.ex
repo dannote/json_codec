@@ -10,6 +10,7 @@ defmodule JSONCodec do
   """
 
   alias JSONCodec.Error
+  alias JSONCodec.Schema.Builder
 
   defmacro __using__(opts \\ []) do
     opts = Macro.expand(opts, __CALLER__)
@@ -161,7 +162,7 @@ defmodule JSONCodec do
 
       @doc "Returns a JSON Schema-compatible schema map."
       @impl JSONCodec.Schema
-      def json_schema, do: JSONCodec.Schema.Builder.object(__MODULE__)
+      def json_schema, do: Builder.object(__MODULE__)
     end
   end
 
@@ -215,7 +216,7 @@ defmodule JSONCodec do
   def dump(value), do: value
 
   @doc "Returns a JSON Schema-compatible schema map for a JSONCodec module."
-  def json_schema(module), do: JSONCodec.Schema.Builder.object(module)
+  def json_schema(module), do: Builder.object(module)
 
   defp build_fields(module, struct_fields, type_fields, field_options, codec_options, env) do
     defaults = struct_fields

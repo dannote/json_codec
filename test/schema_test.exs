@@ -1,6 +1,8 @@
 defmodule JSONCodec.SchemaTest do
   use ExUnit.Case, async: true
 
+  alias JSONCodec.Schema.Builder
+
   defmodule Node do
     use JSONCodec
     defstruct [:name, children: [], indexed: %{}, parent: nil]
@@ -86,7 +88,7 @@ defmodule JSONCodec.SchemaTest do
     assert schema["properties"]["parent"] == %{"$ref" => "#", "nullable" => true}
     assert schema["required"] == ["name"]
     assert Node.json_schema() == schema
-    assert JSONCodec.Schema.Builder.type_schema(Node) == schema
+    assert Builder.type_schema(Node) == schema
     assert Jason.decode!(Jason.encode!(schema)) == schema
   end
 
