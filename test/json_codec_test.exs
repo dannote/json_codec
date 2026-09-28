@@ -478,7 +478,7 @@ defmodule JSONCodecTest do
     assert {:error, %JSONCodec.Error{path: [], reason: :invalid_json, details: details}} =
              GuardedDateTimeCast.decode("not json")
 
-    assert details =~ "unexpected byte"
+    assert details == "invalid byte \"o\" at byte 1"
     assert_raise JSONCodec.Error, ~r/invalid_json/, fn -> GuardedDateTimeCast.decode!("{") end
   end
 

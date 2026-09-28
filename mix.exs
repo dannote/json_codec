@@ -31,7 +31,7 @@ defmodule JSONCodec.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      {:jason, "~> 1.4"},
+      {:jason, "~> 1.4", optional: true},
       {:json_spec, "~> 1.2"},
       {:benchee, "~> 1.5", only: :dev, runtime: false},
       {:spectral, "~> 0.13.0", only: :dev, runtime: false},

@@ -2,7 +2,8 @@ defmodule JSONCodec do
   @moduledoc """
   Compile-time generated codecs for JSON-shaped Elixir structs.
 
-  `JSONCodec` is not a JSON parser. It uses `Jason` for JSON parsing and focuses on
+  `JSONCodec` is not a JSON parser. It parses with Elixir's `JSON` module on Elixir 1.18+,
+  or `Jason` on earlier versions, and focuses on
   the part application code usually repeats by hand: turning decoded string-keyed maps
   into nested structs with defaults, aliases, computed fields, explicit atom policy, and
   schema export.
@@ -135,28 +136,22 @@ defmodule JSONCodec do
 
   @doc "Decodes a JSON string into `module`."
   def decode(json, module) when is_binary(json) and is_atom(module) do
-    case Jason.decode(json) do
+    case JSONCodec.JSON.decode(json) do
       {:ok, map} -> from_map(map, module)
-      {:error, error} -> {:error, invalid_json(error)}
+      {:error, message} -> {:error, invalid_json(json, message)}
     end
   end
 
   @doc "Decodes a JSON string into `module`, raising on failure."
   def decode!(json, module) when is_binary(json) and is_atom(module) do
-    case Jason.decode(json) do
+    case JSONCodec.JSON.decode(json) do
       {:ok, map} -> from_map!(map, module)
-      {:error, error} -> raise invalid_json(error)
+      {:error, message} -> raise invalid_json(json, message)
     end
   end
 
-  defp invalid_json(%Jason.DecodeError{} = error) do
-    %Error{
-      path: [],
-      expected: :json,
-      got: error.data,
-      reason: :invalid_json,
-      details: Exception.message(error)
-    }
+  defp invalid_json(json, message) do
+    %Error{path: [], expected: :json, got: json, reason: :invalid_json, details: message}
   end
 
   @doc "Builds `module` from a decoded JSON map."
